@@ -3,6 +3,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using PostQuantum.DataProtection.Diagnostics;
 using PostQuantum.DataProtection.Hybrid;
 using PostQuantum.DataProtection.Keys;
@@ -32,6 +34,7 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
     private readonly PostQuantumKeyManager _pqKeys;
     private readonly IContentKeyProvider _contentKeys;
     private readonly HybridKemMode _mode;
+    private readonly ILogger<PostQuantumXmlEncryptor> _logger;
 
     /// <summary>
     /// XML namespace pinned by the format. Keep stable across versions — wire-format changes go
@@ -43,13 +46,14 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
     public const string XmlElementName = "pqEnvelope";
 
     /// <summary>Creates an encryptor that targets the active keypair of <paramref name="pqKeys"/>.</summary>
-    public PostQuantumXmlEncryptor(PostQuantumKeyManager pqKeys, IContentKeyProvider contentKeys, HybridKemMode mode = HybridKemMode.Hybrid)
+    public PostQuantumXmlEncryptor(PostQuantumKeyManager pqKeys, IContentKeyProvider contentKeys, HybridKemMode mode = HybridKemMode.Hybrid, ILogger<PostQuantumXmlEncryptor>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(pqKeys);
         ArgumentNullException.ThrowIfNull(contentKeys);
         _pqKeys = pqKeys;
         _contentKeys = contentKeys;
         _mode = mode;
+        _logger = logger ?? NullLogger<PostQuantumXmlEncryptor>.Instance;
     }
 
     /// <inheritdoc />
@@ -80,6 +84,7 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
 
             activity?.SetTag("pq.publicKeyId", envelope.PublicKeyId);
             Telemetry.Encryptions.Add(1, new KeyValuePair<string, object?>("mode", _mode.ToString()));
+            LogEncryptedElement(_logger, _mode, envelope.PublicKeyId, envelope.Ciphertext.Length, null);
             return new EncryptedXmlInfo(encryptedElement, typeof(PostQuantumXmlDecryptor));
         }
         finally
@@ -90,11 +95,18 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
         }
     }
 
+    private static readonly Action<ILogger, HybridKemMode, string, int, Exception?> LogEncryptedElement =
+        LoggerMessage.Define<HybridKemMode, string, int>(
+            LogLevel.Debug,
+            new EventId(1, "PqDataProtectionEncrypted"),
+            "Encrypted Data Protection element (mode={Mode}, publicKeyId={PublicKeyId}, ciphertextBytes={CiphertextLength}).");
+
     private async ValueTask<HybridKemEnvelope> EncryptAsync(XElement plaintextElement)
     {
-        (string activeKeyId, byte[] publicKey) = await _pqKeys.GetPublicKeyAsync(cancellationToken: default).ConfigureAwait(false);
+        (string activeKeyId, string algorithm, byte[] publicKey) = await _pqKeys.GetPublicKeyAsync(cancellationToken: default).ConfigureAwait(false);
+        MlKemParameterSet parameterSet = MlKem.ParseAlgorithmLabel(algorithm);
 
-        (byte[] kemCiphertext, byte[] mlKemSharedSecret) = MlKem.Encapsulate(publicKey);
+        (byte[] kemCiphertext, byte[] mlKemSharedSecret) = MlKem.Encapsulate(publicKey, parameterSet);
         byte[]? classicalSecret = null;
         string classicalWrappedToken = string.Empty;
         ContentKey? classicalDek = null;
@@ -103,12 +115,14 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
 
         try
         {
-            if (_mode == HybridKemMode.Hybrid)
+            if (_mode is HybridKemMode.Hybrid or HybridKemMode.XWingHybrid)
             {
                 classicalDek = await _contentKeys.CreateContentKeyAsync().ConfigureAwait(false);
                 classicalSecret = classicalDek.Key.ToArray();
                 classicalWrappedToken = classicalDek.WrappedKey.Encode();
-                derivedKey = HybridCombiner.DeriveHybrid(mlKemSharedSecret, classicalSecret, nonce);
+                derivedKey = _mode == HybridKemMode.XWingHybrid
+                    ? HybridCombiner.DeriveXWingHybrid(mlKemSharedSecret, classicalSecret, kemCiphertext, nonce)
+                    : HybridCombiner.DeriveHybrid(mlKemSharedSecret, classicalSecret, nonce);
             }
             else
             {
@@ -127,7 +141,7 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
             return new HybridKemEnvelope
             {
                 Mode = _mode,
-                KemAlgorithm = MlKem.AlgorithmName,
+                KemAlgorithm = algorithm,
                 PublicKeyId = activeKeyId,
                 KemCiphertext = kemCiphertext,
                 ClassicalWrappedKeyToken = classicalWrappedToken,

@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>PostQuantum.DataProtection.Cli</RootNamespace>
+    <AssemblyName>pq-dp</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NeutralLanguage>en-US</NeutralLanguage>
+
+    <!-- dotnet-tool packaging -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>pq-dp</ToolCommandName>
+    <EnablePackageValidation>false</EnablePackageValidation>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>PostQuantum.DataProtection.Cli</PackageId>
+    <Version>0.1.0-preview.4</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.4</FileVersion>
+    <Authors>Paul Clark</Authors>
+    <Company>Systems Librarian</Company>
+    <Product>PostQuantum.DataProtection.Cli</Product>
+    <Title>pq-dp — diagnostics CLI for PostQuantum.DataProtection</Title>
+    <Description>Diagnostics CLI for PostQuantum.DataProtection. Install as a global dotnet tool: dotnet tool install --global PostQuantum.DataProtection.Cli. Currently supports: pq-dp inspect &lt;path-to-key.xml&gt; — prints envelope routing fields, mode, key id, and byte sizes from a persisted Data Protection key file without exposing any secret material.</Description>
+    <PackageTags>post-quantum;pqc;dotnet-tool;cli;diagnostics;aspnetcore;data-protection</PackageTags>
+    <PackageProjectUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright (c) Paul Clark</Copyright>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReleaseNotes>0.1.0-preview.4: First public preview. Diagnostics CLI for PostQuantum.DataProtection. Currently supports: pq-dp inspect &lt;path-to-key.xml&gt;.</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

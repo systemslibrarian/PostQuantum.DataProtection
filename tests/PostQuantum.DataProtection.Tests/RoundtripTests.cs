@@ -11,6 +11,7 @@ public sealed class RoundtripTests
     [Theory]
     [InlineData(HybridKemMode.Hybrid)]
     [InlineData(HybridKemMode.MlKemOnly)]
+    [InlineData(HybridKemMode.XWingHybrid)]
     public async Task Encrypt_then_Decrypt_yields_the_original_element(HybridKemMode mode)
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();

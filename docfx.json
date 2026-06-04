@@ -1,0 +1,64 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "./src",
+          "files": [
+            "PostQuantum.DataProtection/**/*.csproj",
+            "PostQuantum.DataProtection.AzureKeyVault/**/*.csproj",
+            "PostQuantum.DataProtection.Aws/**/*.csproj",
+            "PostQuantum.DataProtection.Testing/**/*.csproj",
+            "PostQuantum.DataProtection.OpenTelemetry/**/*.csproj"
+          ]
+        }
+      ],
+      "dest": "docfx/api",
+      "properties": {
+        "TargetFramework": "net10.0"
+      },
+      "filter": "docfx/filter.yml"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "src": "docfx",
+        "files": [
+          "api/*.yml",
+          "api/index.md",
+          "toc.yml",
+          "index.md"
+        ]
+      },
+      {
+        "src": ".",
+        "files": [
+          "README.md",
+          "SECURITY.md",
+          "KNOWN-GAPS.md",
+          "CHANGELOG.md",
+          "future.md",
+          "docs/**/*.md"
+        ],
+        "dest": "."
+      }
+    ],
+    "globalMetadata": {
+      "_appName": "PostQuantum.DataProtection",
+      "_appTitle": "PostQuantum.DataProtection",
+      "_appFooter": "<span>To God be the glory — 1 Corinthians 10:31</span>",
+      "_enableSearch": true,
+      "_disableContribution": false,
+      "_gitContribute": {
+        "repo": "https://github.com/systemslibrarian/PostQuantum.DataProtection",
+        "branch": "main"
+      }
+    },
+    "dest": "docfx/_site",
+    "template": [
+      "default",
+      "modern"
+    ]
+  }
+}

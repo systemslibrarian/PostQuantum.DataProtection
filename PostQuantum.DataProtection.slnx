@@ -2,18 +2,31 @@
   <Folder Name="/src/">
     <Project Path="src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
     <Project Path="src/PostQuantum.DataProtection.AzureKeyVault/PostQuantum.DataProtection.AzureKeyVault.csproj" />
+    <Project Path="src/PostQuantum.DataProtection.Testing/PostQuantum.DataProtection.Testing.csproj" />
+    <Project Path="src/PostQuantum.DataProtection.OpenTelemetry/PostQuantum.DataProtection.OpenTelemetry.csproj" />
+    <Project Path="src/PostQuantum.DataProtection.Aws/PostQuantum.DataProtection.Aws.csproj" />
+    <Project Path="src/PostQuantum.DataProtection.Redis/PostQuantum.DataProtection.Redis.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PostQuantum.DataProtection.Tests/PostQuantum.DataProtection.Tests.csproj" />
     <Project Path="tests/PostQuantum.DataProtection.AzureKeyVault.Tests/PostQuantum.DataProtection.AzureKeyVault.Tests.csproj" />
+    <Project Path="tests/PostQuantum.DataProtection.Testing.Tests/PostQuantum.DataProtection.Testing.Tests.csproj" />
+    <Project Path="tests/PostQuantum.DataProtection.Aws.Tests/PostQuantum.DataProtection.Aws.Tests.csproj" />
+    <Project Path="tests/PostQuantum.DataProtection.Redis.Tests/PostQuantum.DataProtection.Redis.Tests.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/AspNetCore.Sample/AspNetCore.Sample.csproj" />
+    <Project Path="samples/WorkerService.Sample/WorkerService.Sample.csproj" />
+    <Project Path="samples/Blazor.Sample/Blazor.Sample.csproj" />
+    <Project Path="samples/MultiReplica.Sample/MultiReplica.Sample.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/PostQuantum.DataProtection.Benchmarks/PostQuantum.DataProtection.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/fuzz/">
     <Project Path="fuzz/PostQuantum.DataProtection.Fuzz/PostQuantum.DataProtection.Fuzz.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/PostQuantum.DataProtection.Cli/PostQuantum.DataProtection.Cli.csproj" />
   </Folder>
 </Solution>

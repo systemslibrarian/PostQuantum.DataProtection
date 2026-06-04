@@ -110,13 +110,21 @@ public sealed record PostQuantumKeyPair
     }
 
     /// <summary>
-    /// Derives a stable, human-readable id from the public key bytes:
-    /// <c>"pq-mlkem768-" + hex(SHA-256(pk)[..6])</c>.
+    /// Derives a stable, human-readable id from the public key bytes for ML-KEM-768:
+    /// <c>"pq-mlkem768-" + hex(SHA-256(pk)[..6])</c>. Preserved for backward-compatibility with
+    /// keypairs minted by earlier previews; new callers should pass the parameter set.
     /// </summary>
-    public static string ComputeKeyId(ReadOnlySpan<byte> publicKey)
+    public static string ComputeKeyId(ReadOnlySpan<byte> publicKey) =>
+        ComputeKeyId(publicKey, Hybrid.MlKemParameterSet.Kem768);
+
+    /// <summary>
+    /// Derives a stable, human-readable id from the public key bytes for the chosen ML-KEM
+    /// parameter set: <c>{prefix} + hex(SHA-256(pk)[..6])</c>.
+    /// </summary>
+    public static string ComputeKeyId(ReadOnlySpan<byte> publicKey, Hybrid.MlKemParameterSet parameterSet)
     {
         byte[] hash = SHA256.HashData(publicKey);
-        return "pq-mlkem768-" + Convert.ToHexString(hash, 0, 6).ToLowerInvariant();
+        return Hybrid.MlKem.KeyIdPrefixFor(parameterSet) + Convert.ToHexString(hash, 0, 6).ToLowerInvariant();
     }
 
     private static PostQuantumKeyPair DecodeCore(string token)

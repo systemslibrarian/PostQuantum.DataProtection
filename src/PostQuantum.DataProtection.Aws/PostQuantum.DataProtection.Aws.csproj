@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>PostQuantum.DataProtection.Aws</RootNamespace>
+    <AssemblyName>PostQuantum.DataProtection.Aws</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>PostQuantum.DataProtection.Aws</PackageId>
+    <Version>0.1.0-preview.4</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.4</FileVersion>
+    <Authors>Paul Clark</Authors>
+    <Company>Systems Librarian</Company>
+    <Product>PostQuantum.DataProtection.Aws</Product>
+    <Title>PostQuantum.DataProtection.Aws — AWS Secrets Manager-backed PQ keypair store</Title>
+    <Description>AWS Secrets Manager-backed IPostQuantumKeyStore for PostQuantum.DataProtection. Stores ML-KEM-768 keypairs as Secrets Manager secrets (one secret per keypair plus a small &quot;active&quot; pointer secret). The PQ secret key is already envelope-encrypted by the host IContentKeyProvider before it touches AWS, so AWS sees only opaque bytes — the service is a durable persistence target, not a new trust boundary. One-line wiring: services.AddPostQuantumDataProtectionAws(...). Multi-targets net8.0 / net9.0 / net10.0 with deterministic builds, SourceLink, and symbol packages.</Description>
+    <PackageTags>post-quantum;pqc;ml-kem;aws;secretsmanager;aspnetcore;data-protection;cryptography;security</PackageTags>
+    <PackageProjectUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright (c) Paul Clark</Copyright>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReleaseNotes>0.1.0-preview.4: First public preview. AWS Secrets Manager-backed IPostQuantumKeyStore for PostQuantum.DataProtection. Parallel structure to PostQuantum.DataProtection.AzureKeyVault — same secret-prefix model, same crash-safe write order (keypair secret before active-pointer secret), same narrow ISecretsManagerClient seam for unit tests.</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
+    <PackageReference Include="AWSSDK.SecretsManager" Version="3.7.500" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PostQuantum.DataProtection.Aws.Tests" />
+  </ItemGroup>
+
+</Project>

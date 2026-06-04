@@ -27,6 +27,7 @@ internal static class HybridCombiner
 
     private const string HybridLabel = "PostQuantum.DataProtection v1 hybrid ML-KEM-768 + AES-256-GCM";
     private const string MlKemOnlyLabel = "PostQuantum.DataProtection v1 ML-KEM-768 + AES-256-GCM";
+    private const string XWingLabel = "PostQuantum.DataProtection v1 XWing-hybrid ML-KEM-768 + AES-256-GCM";
 
     /// <summary>
     /// HKDF-SHA-256(salt = <paramref name="salt"/>, ikm = <paramref name="mlKemSharedSecret"/>,
@@ -85,6 +86,56 @@ internal static class HybridCombiner
         finally
         {
             CryptographicOperations.ZeroMemory(ikm);
+        }
+    }
+
+    /// <summary>
+    /// X-Wing-style combiner adapted to our (no classical KEM ciphertext) setting.
+    /// SHA3-256(label || ml_kem_ss || classical_ss || ml_kem_ct || salt) → 32-byte AES-256 key.
+    /// Single-shot hash; no HKDF needed because every input is fixed-length and the hash output is
+    /// already the target key length.
+    /// </summary>
+    public static byte[] DeriveXWingHybrid(
+        ReadOnlySpan<byte> mlKemSharedSecret,
+        ReadOnlySpan<byte> classicalSharedSecret,
+        ReadOnlySpan<byte> mlKemCiphertext,
+        ReadOnlySpan<byte> salt)
+    {
+        if (mlKemSharedSecret.Length != MlKem.SharedSecretLength)
+        {
+            throw new ArgumentException(
+                $"ML-KEM shared secret must be exactly {MlKem.SharedSecretLength} bytes.",
+                nameof(mlKemSharedSecret));
+        }
+
+        if (classicalSharedSecret.IsEmpty)
+        {
+            throw new ArgumentException("Classical shared secret must not be empty in XWingHybrid mode.", nameof(classicalSharedSecret));
+        }
+
+        if (mlKemCiphertext.IsEmpty)
+        {
+            throw new ArgumentException("ML-KEM ciphertext must not be empty in XWingHybrid mode.", nameof(mlKemCiphertext));
+        }
+
+        byte[] label = Encoding.UTF8.GetBytes(XWingLabel);
+        int totalLength = label.Length + mlKemSharedSecret.Length + classicalSharedSecret.Length + mlKemCiphertext.Length + salt.Length;
+
+        byte[] buffer = new byte[totalLength];
+        try
+        {
+            int offset = 0;
+            label.AsSpan().CopyTo(buffer.AsSpan(offset)); offset += label.Length;
+            mlKemSharedSecret.CopyTo(buffer.AsSpan(offset)); offset += mlKemSharedSecret.Length;
+            classicalSharedSecret.CopyTo(buffer.AsSpan(offset)); offset += classicalSharedSecret.Length;
+            mlKemCiphertext.CopyTo(buffer.AsSpan(offset)); offset += mlKemCiphertext.Length;
+            salt.CopyTo(buffer.AsSpan(offset));
+
+            return SHA3_256.HashData(buffer);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(buffer);
         }
     }
 }

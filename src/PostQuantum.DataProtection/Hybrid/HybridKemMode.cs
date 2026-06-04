@@ -34,4 +34,15 @@ public enum HybridKemMode : byte
     /// <see cref="PostQuantum.KeyManagement.IContentKeyProvider"/> via HKDF-SHA-256. The default.
     /// </summary>
     Hybrid = 1,
+
+    /// <summary>
+    /// ML-KEM-768 combined with the symmetric KEK via an X-Wing-style combiner
+    /// (SHA3-256 over the ML-KEM ciphertext, ML-KEM shared secret, classical secret, and a domain
+    /// label). Sharper construction in some adversary models than the HKDF combiner; the additional
+    /// SHA3 cost is single-digit microseconds. Per
+    /// <a href="https://datatracker.ietf.org/doc/draft-connolly-cfrg-xwing-kem/">draft-connolly-cfrg-xwing-kem</a>
+    /// — adapted because we don't ship a classical KEM in this layer; the classical secret comes
+    /// from the host KEK.
+    /// </summary>
+    XWingHybrid = 2,
 }

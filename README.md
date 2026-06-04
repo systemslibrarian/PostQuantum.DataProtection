@@ -2,95 +2,82 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Target](https://img.shields.io/badge/.NET-8.0%20%7C%209.0%20%7C%2010.0-512BD4.svg)](#requirements)
-[![Status](https://img.shields.io/badge/status-preview-orange.svg)](#project-status)
 [![NuGet](https://img.shields.io/badge/NuGet-PostQuantum.DataProtection-004880.svg)](https://www.nuget.org/packages/PostQuantum.DataProtection)
+[![FIPS 203](https://img.shields.io/badge/FIPS%20203-ML--KEM--768-228B22.svg)](docs/threat-model.md)
 [![ci](https://github.com/systemslibrarian/PostQuantum.DataProtection/actions/workflows/ci.yml/badge.svg)](https://github.com/systemslibrarian/PostQuantum.DataProtection/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/systemslibrarian/PostQuantum.DataProtection/actions/workflows/codeql.yml/badge.svg)](https://github.com/systemslibrarian/PostQuantum.DataProtection/actions/workflows/codeql.yml)
 
 > **Post-quantum / hybrid key wrapping for ASP.NET Core Data Protection.**
-> One line in `Program.cs` and every persisted Data Protection key — cookie keys, antiforgery keys,
-> session tickets, anti-CSRF tokens, every `IDataProtector` payload at rest — is wrapped under an
-> **ML-KEM-768 (FIPS 203) + AES-256-GCM** hybrid envelope.
+> One line in `Program.cs` and every persisted Data Protection key — cookie keys, antiforgery
+> keys, session tickets, Blazor circuit tokens, every `IDataProtector` payload at rest — is
+> wrapped under an **ML-KEM-768 (FIPS 203) + AES-256-GCM hybrid envelope.**
 
-`PostQuantum.DataProtection` plugs in as an `IXmlEncryptor` / `IXmlDecryptor` pair on the
-`IDataProtectionBuilder` you already configure. The post-quantum layer is **ML-KEM-768** from
-[BouncyCastle](https://www.bouncycastle.org/) (FIPS 203). The classical layer reuses
-[`PostQuantum.KeyManagement`](https://www.nuget.org/packages/PostQuantum.KeyManagement) — the same
-Argon2id-derived KEK + AES-256-GCM envelope already in the `PostQuantum.*` family — so the
-long-lived PQ secret key is itself envelope-encrypted at rest by the host KEK.
+```csharp
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("keys"))
+    .ProtectKeysWithPostQuantum(o => o.KeyStorePath = "keys/pq-keystore.txt");
+```
 
-It is the natural companion to [`PostQuantum.KeyManagement`](https://github.com/systemslibrarian/PostQuantum.KeyManagement)
-and the rest of the `PostQuantum.*` family.
-
-> ⚠️ **Preview (`0.1.0-preview.1`).** The API surface is small and the envelope wire-format is
-> versioned, but both may still change before `1.0`. Read [KNOWN-GAPS.md](KNOWN-GAPS.md) before
-> relying on it — it is deliberately blunt about what this library does and does **not** yet do.
-> The threat model is in [`docs/threat-model.md`](docs/threat-model.md). No third-party audit yet —
-> the engagement plan is in [`future.md`](future.md).
+That's it.
 
 ---
 
-## When to use this
+## What you get
 
-| Situation                                                                            | Verdict          |
-| ------------------------------------------------------------------------------------ | ---------------- |
-| You run ASP.NET Core and persist Data Protection keys (cookies, antiforgery, etc.).  | ✅ Yes           |
-| Your threat model includes "harvest-now-decrypt-later" against the key store.        | ✅ Especially.   |
-| You already use `PostQuantum.KeyManagement` to manage a host KEK.                    | ✅ Drop-in.      |
-| You want defense-in-depth: a classical-broken passphrase ≠ lost confidentiality.     | ✅ Hybrid mode.  |
-| You need a FIPS-validated implementation today (FIPS 140-3 module).                  | ❌ Not yet — see [KNOWN-GAPS.md §3](KNOWN-GAPS.md#3-not-fips-140-validated). |
-| Your sole goal is rate-limiting key disclosure inside a single process.              | ❌ Use the BCL.  |
-| You expect the public PQ key to leave the host (cross-party exchange).               | ❌ Out of scope — this is for at-rest wrapping. |
+Six packages, one CLI, four end-to-end samples. Mix and match.
 
-The honest one-liner: **this is at-rest defense-in-depth for Data Protection keys.** It does not
-turn ASP.NET Core's request pipeline post-quantum; it makes sure the *keys that protect that
-pipeline's tokens* stay confidential if the on-disk key store is ever stolen.
+| Package | Purpose |
+|---|---|
+| **`PostQuantum.DataProtection`** | The core. Encryptor / decryptor, key manager, file-backed key store, DI extensions, health check, scheduled rotation, retention/prune helper, metrics + tracing. Supports ML-KEM-512, ML-KEM-768, ML-KEM-1024 + HKDF and X-Wing combiners. |
+| **`PostQuantum.DataProtection.AzureKeyVault`** | `IPostQuantumKeyStore` backed by Azure Key Vault Secrets. One line: `services.AddPostQuantumDataProtectionAzureKeyVault(vaultUri)`. |
+| **`PostQuantum.DataProtection.Aws`** | `IPostQuantumKeyStore` backed by AWS Secrets Manager. One line: `services.AddPostQuantumDataProtectionAws()`. |
+| **`PostQuantum.DataProtection.Redis`** | `IPostQuantumKeyStore` backed by Redis. Natural pair with `PersistKeysToStackExchangeRedis`. |
+| **`PostQuantum.DataProtection.OpenTelemetry`** | One-line OTel wiring. `.AddPostQuantumDataProtectionInstrumentation()` on a `MeterProviderBuilder` / `TracerProviderBuilder`. |
+| **`PostQuantum.DataProtection.Testing`** | `FakePostQuantumKeyStore` + `AddPostQuantumDataProtectionTesting()` for consumer unit tests — no cloud, no disk. |
+| **`PostQuantum.DataProtection.Cli`** (`pq-dp`) | `dotnet tool` for inspecting persisted DP key XML files. No secrets emitted. |
+
+Samples:
+
+| Sample | What it shows |
+|---|---|
+| [`AspNetCore.Sample`](samples/AspNetCore.Sample) | Minimal-API host with cookie auth + antiforgery, both PQ-protected. |
+| [`WorkerService.Sample`](samples/WorkerService.Sample) | Worker Service using PQ outside ASP.NET Core, with scheduled rotation. |
+| [`Blazor.Sample`](samples/Blazor.Sample) | Blazor Server with PQ-protected circuit + cookie + `IDataProtector` roundtrip. |
+| [`MultiReplica.Sample`](samples/MultiReplica.Sample) | Two simulated replicas sharing one Key Vault — proves the multi-replica shape end to end. |
+
+---
 
 ## Why hybrid (and why ML-KEM-768)
 
 - **Hybrid = belt-and-braces.** The AES-256-GCM key that wraps each Data Protection element is
-  HKDF-derived from *both* the ML-KEM shared secret *and* a classical secret minted by your
+  HKDF-derived from *both* the ML-KEM shared secret *and* a classical secret from your
   `IContentKeyProvider`. An attacker has to defeat **both** layers to recover plaintext. A
   classically-broken passphrase still has ML-KEM in the way; a (hypothetical) quantum-broken
   ML-KEM still has the classical wrap in the way. This is the IETF hybrid-KEM pattern.
-- **ML-KEM-768 is the general-purpose pick.** NIST category 3 (≈ 192-bit classical strength) — the
-  same security level NIST recommends for general-purpose use. ML-KEM-512 sacrifices margin to
-  save 384 bytes per encapsulation; ML-KEM-1024 raises margin at the cost of an extra 736 bytes.
-  768 sits where most production traffic should sit.
+- **ML-KEM-768 is the general-purpose pick.** NIST category 3 (≈ 192-bit classical strength) —
+  the level NIST recommends for general use. We default there; switch to 512 or 1024 when the
+  selectable parameter set lands (see [`KNOWN-GAPS.md` §C1](KNOWN-GAPS.md#c1-selectable-ml-kem-parameter-set)).
+- **Verified against FIPS 203.** Our integration is pinned by a NIST-aligned KAT vector: given
+  the seed bytes from `post-quantum-cryptography/KAT`, BouncyCastle's ML-KEM-768 produces the
+  exact `pk` (1184 bytes), `sk` (2400 bytes), and decapsulates the published ciphertext to the
+  published shared secret — byte for byte. The test runs on every PR.
 
-The cipher choices are not configurable in `0.1`. That is on purpose — fewer knobs, fewer ways to
-shoot yourself. ML-KEM-512 / 1024 selection is on the roadmap (see [`future.md`](future.md)).
+## When to use this
 
-## Try the demo in 60 seconds
+| Situation | Verdict |
+|---|---|
+| You run ASP.NET Core, Blazor, or any .NET host with Data Protection. | ✅ Yes |
+| Your threat model includes "harvest-now, decrypt-later" against the key store. | ✅ Especially |
+| You want defense-in-depth without ripping out your existing Data Protection wiring. | ✅ One line |
+| You need a FIPS 140-3 validated module today. | ❌ Roadmap — see [§C6](KNOWN-GAPS.md#c6-fips-140-3-path-via-the-bc-fips-module) |
+| You want PQ session-key negotiation over the wire. | ❌ Different layer — TLS hybrid groups belong in the stack |
 
-A working sample ships in [`samples/AspNetCore.Sample`](samples/AspNetCore.Sample) — a minimal-API
-host that issues cookies and antiforgery tokens whose underlying Data Protection keys are wrapped
-with ML-KEM-768 + AES-256-GCM:
-
-```bash
-cd samples/AspNetCore.Sample
-ASPNETCORE_ENVIRONMENT=Development dotnet run
-# open the printed URL, hit /, watch the cookie roundtrip succeed, and inspect
-# data-protection/ on disk to see the pqEnvelope element.
-```
-
-## Requirements
-
-- .NET **8.0**, **9.0**, or **10.0** (multi-targeted, deterministic, SourceLink, symbol packages).
-- A registered `PostQuantum.KeyManagement` `IContentKeyProvider` (one line of DI; see below).
-
-## Installation
+## Quick start
 
 ```bash
 dotnet add package PostQuantum.DataProtection --prerelease
+dotnet add package PostQuantum.KeyManagement --prerelease
 ```
-
-This package is dependency-light: ASP.NET Core Data Protection's abstractions,
-`PostQuantum.KeyManagement` for the classical KEK, and BouncyCastle for ML-KEM-768. It pulls in no
-HTTP clients, no logging adapters, no JSON. Cloud-backed PQ key stores (Azure Key Vault, AWS KMS,
-GCP KMS) will ship as separate packages so the core stays small (see [`future.md`](future.md)).
-
-## Quick start
 
 ```csharp
 using Microsoft.AspNetCore.DataProtection;
@@ -99,183 +86,223 @@ using PostQuantum.KeyManagement;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-// 1. Register PostQuantum.KeyManagement (provides IContentKeyProvider — the classical KEK).
 builder.Services.AddPostQuantumKeyManagement(options =>
 {
     options.Passphrase = builder.Configuration["KeyManagement:Passphrase"]
         ?? throw new InvalidOperationException("Missing passphrase");
-    options.WorkFactor = KekWorkFactor.Interactive;
-    options.KeyringPath = "keys/keyring.bin";
+    options.WorkFactor = KekWorkFactor.Moderate;
+    options.KeyringPath = "keys/host-keyring.bin";
 });
 
-// 2. Wire post-quantum Data Protection. One line.
 builder.Services
     .AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("keys/data-protection"))
     .ProtectKeysWithPostQuantum(options =>
     {
         options.KeyStorePath = "keys/pq-keystore.txt";
-        options.Mode = HybridKemMode.Hybrid;  // default; production-safe
+        options.Mode = HybridKemMode.Hybrid;
+        options.RotationInterval = TimeSpan.FromDays(90);  // optional auto-rotation
     });
 
-// 3. Optional but recommended: a health check that runs a real PQ envelope roundtrip on every
-//    probe so anything that breaks the chain (BC version drift, missing keystore, wrong host
-//    KEK) surfaces as Unhealthy instead of as a 500 at request time.
 builder.Services.AddHealthChecks().AddPostQuantumDataProtection();
-
-WebApplication app = builder.Build();
-app.MapHealthChecks("/health");
 ```
 
-### Listing keypairs from an admin endpoint
+### Configure from `appsettings.json` instead of code
+
+```jsonc
+{
+  "PostQuantumDataProtection": {
+    "KeyStorePath": "keys/pq-keystore.txt",
+    "Mode": "Hybrid",
+    "RotationInterval": "90.00:00:00"
+  }
+}
+```
 
 ```csharp
-app.MapGet("/admin/pq-keys", async (PostQuantumKeyManager pq) =>
-{
-    IReadOnlyList<PostQuantumKeyDescriptor> keys = await pq.ListKeysAsync();
-    return Results.Ok(keys);  // non-secret: id, algorithm, createdAt, isActive
-});
+builder.Services
+    .AddDataProtection()
+    .ProtectKeysWithPostQuantum(builder.Configuration.GetSection("PostQuantumDataProtection"));
 ```
 
-That is the whole integration. On first run, the library generates an ML-KEM-768 keypair, wraps
-its secret key under the `IContentKeyProvider` host KEK, and writes the pair to
-`keys/pq-keystore.txt`. From that point on every Data Protection key persisted under
-`keys/data-protection/` is wrapped in a `pqEnvelope` element.
+### Replace the file store with Azure Key Vault
+
+```csharp
+builder.Services.AddPostQuantumDataProtectionAzureKeyVault(new Uri("https://my-vault.vault.azure.net/"));
+```
+
+### Replace the file store with AWS Secrets Manager
+
+```csharp
+builder.Services.AddPostQuantumDataProtectionAws(o => o.Region = Amazon.RegionEndpoint.USEast1);
+```
+
+### Wire OpenTelemetry in one line
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(m => m.AddPostQuantumDataProtectionInstrumentation().AddPrometheusExporter())
+    .WithTracing(t => t.AddPostQuantumDataProtectionInstrumentation().AddOtlpExporter());
+```
+
+### Unit-test consumer code without standing up a real chain
+
+```csharp
+[Fact]
+public void My_service_protects_and_unprotects()
+{
+    var services = new ServiceCollection();
+    services.AddPostQuantumDataProtectionTesting();
+    using ServiceProvider sp = services.BuildServiceProvider();
+
+    IDataProtector p = sp.GetRequiredService<IDataProtectionProvider>().CreateProtector("p");
+    Assert.Equal("hi", p.Unprotect(p.Protect("hi")));
+}
+```
+
+### Inspect a persisted key file from the CLI
+
+```bash
+dotnet tool install --global PostQuantum.DataProtection.Cli --prerelease
+pq-dp inspect keys/data-protection/key-c6b3b03f-b73a-477b-92e5-d19ae0e0b5fd.xml
+```
+
+```text
+Format version:      1
+Mode:                Hybrid
+KEM algorithm:       ML-KEM-768
+Public key id:       pq-mlkem768-4411e03446f5
+KEM ciphertext:      1088 bytes
+Classical wrap:      236 chars
+AES-GCM nonce:       12 bytes
+AES-GCM tag:         16 bytes
+AES-GCM ciphertext:  120 bytes
+```
 
 ## What lands on disk
 
-`keys/data-protection/key-{guid}.xml` (the file ASP.NET Core Data Protection writes by itself)
-now contains a single `<pqEnvelope>` element:
-
 ```xml
-<?xml version="1.0" encoding="utf-8"?>
-<key id="..." version="1">
-  <creationDate>...</creationDate>
-  <activationDate>...</activationDate>
-  <expirationDate>...</expirationDate>
-  <descriptor deserializerType="...">
-    <descriptor>
-      <encryption algorithm="AES_256_CBC" />
-      <validation algorithm="HMACSHA256" />
-      <encryptedSecret decryptorType="PostQuantum.DataProtection.PostQuantumXmlDecryptor, PostQuantum.DataProtection">
-        <pqEnvelope xmlns="https://schemas.systemslibrarian.dev/pq-dataprotection/2026/01"
-                    version="1" mode="Hybrid" publicKeyId="pq-mlkem768-...">
-          BASE64URL...
-        </pqEnvelope>
-      </encryptedSecret>
-    </descriptor>
-  </descriptor>
-</key>
+<encryptedSecret decryptorType="PostQuantum.DataProtection.PostQuantumXmlDecryptor, …">
+  <pqEnvelope xmlns="https://schemas.systemslibrarian.dev/pq-dataprotection/2026/01"
+              version="1" mode="Hybrid" publicKeyId="pq-mlkem768-…">
+    BASE64URL…
+  </pqEnvelope>
+</encryptedSecret>
 ```
 
-The Base64Url blob holds the versioned binary envelope: `[FormatVersion | Mode | KemAlgorithm |
+The Base64Url blob is a versioned binary envelope: `[FormatVersion | Mode | KemAlgorithm |
 PublicKeyId | KemCiphertext | ClassicalWrappedKey | Nonce | Tag | Ciphertext]`. Every field is
-length-prefixed and the decoder caps each length so a malformed XML element cannot trigger huge
-allocations. The full wire-format is documented in [`docs/wire-format.md`](docs/wire-format.md).
+length-prefixed and capped at 1 MiB. Full byte layout in [`docs/wire-format.md`](docs/wire-format.md).
 
-`keys/pq-keystore.txt` holds the long-lived ML-KEM keypair:
+## Performance
 
-```
-active pq-mlkem768-a3c7e2b9
-pair   <base64url token: public key + wrapped secret key>
-```
+Real numbers from `BenchmarkDotNet` on a modern x86_64 host (full table in
+[`docs/benchmarks.md`](docs/benchmarks.md)):
 
-The secret key is **always** wrapped by the host `IContentKeyProvider` before it touches disk —
-even a host-FS read of the keystore yields ciphertext.
+| Operation | Mean |
+|---|---|
+| ML-KEM-768 encapsulate | ~93 µs |
+| ML-KEM-768 decapsulate | ~101 µs |
+| Full envelope encrypt (Hybrid) | ~89 µs |
+| Full envelope decrypt (Hybrid) | ~137 µs |
 
-## Threat model and what we defend against
+Envelope work happens at **DP key persist / load** — startup-path, not request-path. Cookie
+verification, antiforgery validation, and `IDataProtector.Unprotect` all read keys from the
+in-memory key ring; they never go through the envelope.
 
-The full statement is in [`docs/threat-model.md`](docs/threat-model.md); the headline:
+## Observability
 
-- ✅ **An attacker who exfiltrates the Data Protection key directory** sees a `pqEnvelope` and has
-  to defeat both ML-KEM-768 **and** the classical KEK to recover the underlying DP key.
-- ✅ **An attacker who exfiltrates the PQ keystore file** sees ML-KEM public keys in the clear
-  (non-secret) and a secret key wrapped by AES-256-GCM under a key derived via Argon2id from a
-  passphrase they do not have.
-- ✅ **An attacker who tampers with a `pqEnvelope`** is detected by AES-256-GCM's authentication
-  tag — never a silent plaintext on output.
-- ✅ **An attacker today who plans to break the classical wrap with a future CRQC** ("harvest now,
-  decrypt later") is blocked by ML-KEM on the same envelope.
-- ❌ **An attacker who reads process memory of the running host** sees keys in use at that moment.
-  No library can save you from that; mitigate at the host level.
-- ❌ **An attacker who has both the keystore and the host passphrase** has won; the chain ends at
-  the classical KEK.
-- ❌ **A FIPS 140-validated cryptographic boundary.** BouncyCastle is not a FIPS module here. See
-  [KNOWN-GAPS.md §3](KNOWN-GAPS.md#3-not-fips-140-validated).
+The library publishes a `Meter` and an `ActivitySource` named `PostQuantum.DataProtection`.
+Subscribe with OpenTelemetry (or any `IMeterListener`):
 
-## Honest limitations
+| Signal | What it tells you |
+|---|---|
+| `pq_dataprotection.encryptions` | Rate of fresh DP keys being wrapped. Tagged by `mode`. |
+| `pq_dataprotection.decryptions` | Rate of envelope reads. Tagged by `mode`. |
+| `pq_dataprotection.decrypt_failures` | Tagged by `reason`: `wrong_xml_element`, `malformed_envelope`, `unsupported_algorithm`, `unknown_keypair`, `auth_failed`. **Page on any non-zero rate.** |
+| `pq_dataprotection.rotations` | Rate of PQ keypair rotations. Should be quiet outside scheduled windows. |
+| `pq_dataprotection.encrypt.duration` / `decrypt.duration` | Histograms in ms. P95 should sit < 1 ms on modern hardware. |
+| `AddPostQuantumDataProtection()` health check | Real roundtrip on every probe. **Page if Unhealthy.** |
 
-- **No FIPS 140 validation today.** BouncyCastle ships a separate FIPS module; this library uses
-  the standard build. See [KNOWN-GAPS.md §3](KNOWN-GAPS.md#3-not-fips-140-validated).
-- **No third-party audit yet.** Written with care, automated tests, hostile-input tests, and a
-  published threat model — but no external review. Tracked in [`future.md`](future.md).
-- **Single active PQ keypair at a time.** Old PQ keypairs stay in the store so previously-wrapped
-  Data Protection keys still decrypt after a PQ rotation; the active one is what fresh wraps
-  target. This matches how ASP.NET Core Data Protection itself rotates DP keys.
-- **No cloud-backed PQ key stores in `0.1`.** The pluggable `IPostQuantumKeyStore` exists; only
-  the file-backed implementation ships today. Azure Key Vault, AWS KMS, GCP KMS are roadmap.
-- **ML-KEM-768 only.** ML-KEM-512 and ML-KEM-1024 are not configurable yet.
-- **Sync-over-async at the IXmlEncryptor seam.** ASP.NET Core's `IXmlEncryptor` contract is
-  synchronous; the post-quantum operations are awaited via `.AsTask().GetAwaiter().GetResult()`
-  inside the encryptor. This is the same pattern Data Protection itself uses for its built-in
-  encryptors and is on the startup path, not the request path. See
-  [KNOWN-GAPS.md §6](KNOWN-GAPS.md#6-sync-over-async-at-the-ixmlencryptor-seam).
+## Threat model and security posture
 
-See [KNOWN-GAPS.md](KNOWN-GAPS.md) for the full list.
+[`docs/threat-model.md`](docs/threat-model.md) is the precise statement: attacker model (A1 → A6 vs.
+B1 → B4) and 10 numbered security invariants the library is designed to hold. Each invariant
+corresponds to one or more tests.
 
-## Supply chain verification
+[`SECURITY.md`](SECURITY.md) covers reporting vulnerabilities (use GitHub Security Advisories,
+not public issues), supported versions, and the recommended deployment posture.
 
-Every package this repo ships does the following — verify any of them before shipping:
+[`docs/deployment.md`](docs/deployment.md) is the production operations checklist: pre-deploy
+verification, multi-replica model, KEK rotation playbook, disaster recovery matrix, monitoring
+signals.
 
-- **Deterministic build.** `Deterministic=true` and (under CI)
-  `ContinuousIntegrationBuild=true`. Re-running `dotnet pack` on the same commit produces
-  byte-identical `.nupkg` / `.snupkg` outputs.
-- **SourceLink + symbol package.** `IncludeSymbols=true`, `SymbolPackageFormat=snupkg`. The
-  `.snupkg` carries debug info, and `Microsoft.SourceLink.GitHub` embeds the exact GitHub source
-  URL for every PDB entry so debuggers fetch the right source for the right commit.
-- **Embedded untracked sources.** `EmbedUntrackedSources=true` ensures generated files that are
-  not under source control still ship in the symbol package.
-- **Package validation.** `EnablePackageValidation=true` runs the .NET Package Validation analyser
-  on every `dotnet pack` and fails the build on API surface drift between framework targets.
-- **Verifiable dependencies.** `BouncyCastle.Cryptography` (a long-standing, audited PQC source),
-  `PostQuantum.KeyManagement` (the sibling package — written by the same author, same standards),
-  and the official `Microsoft.AspNetCore.DataProtection.*` packages. No private dependencies.
-  Pin the patched `System.Security.Cryptography.Xml` 8.0.3 to avoid a known transitive advisory.
-- **SBOM friendly.** All `<PackageReference>`s are explicit and versioned in the `.csproj`,
-  which is what every SBOM generator (CycloneDX, SPDX, `dotnet-CycloneDX`,
-  `Microsoft.Sbom.DotNetTool`) needs. The repo ships an SBOM-generation recipe in
-  [`docs/supply-chain.md`](docs/supply-chain.md).
+## Honest scope of "post-quantum"
+
+The library wraps Data Protection keys at rest with a verified-against-FIPS-203 ML-KEM-768 + AES-256-GCM
+hybrid envelope. That is the entire claim. We do **not** claim to make ASP.NET Core's request
+pipeline post-quantum, to negotiate PQ session keys, or to be FIPS 140-3 validated today. See
+[`KNOWN-GAPS.md`](KNOWN-GAPS.md) for the full breakdown of what's deliberate, what's roadmap, and
+what's been closed across previews.
+
+## Migrating from another `IXmlEncryptor`
+
+Whether you're on `ProtectKeysWithDpapiNG`, `ProtectKeysWithAzureKeyVault` (the key wrap, not the
+secrets store), or `ProtectKeysWithCertificate`, the migration is non-disruptive — existing keys
+keep decrypting under their old decryptor type while fresh keys roll forward under PQ. Step by
+step in [`docs/migration.md`](docs/migration.md).
+
+## Supply chain
+
+- **Deterministic** builds with **CI-enforced reproducibility** (the CI repacks twice and asserts
+  byte-identical `.nupkg` SHA-256).
+- **SourceLink + symbol packages** so debuggers fetch the exact GitHub source for every
+  commit you ship.
+- **`EnablePackageValidation`** catches API surface drift between framework targets.
+- **`TreatWarningsAsErrors`** plus `latest-recommended` analyzers — zero-warning policy across
+  the repo.
+- **Pinned transitive overrides** for known-vulnerable packages (e.g. `System.Security.Cryptography.Xml`
+  pinned to the patched 8.0.3 to avoid GHSA-37gx-xxp4-5rgx and GHSA-w3x6-4m5h-cxqf).
+- **SBOM-friendly metadata.** Every dependency is an explicit `<PackageReference>`. Recipes for
+  CycloneDX and the Microsoft SBOM tool in [`docs/supply-chain.md`](docs/supply-chain.md).
 
 To verify a published package:
 
 ```bash
-# 1. Download .nupkg and .snupkg from nuget.org.
-# 2. Confirm SourceLink works — the .snupkg should embed GitHub URLs for every source file.
-dotnet tool install --global sourcelink
-sourcelink test PostQuantum.DataProtection.0.1.0-preview.1.nupkg
-
-# 3. Reproduce the build from the matching commit.
-git clone https://github.com/systemslibrarian/PostQuantum.DataProtection
-cd PostQuantum.DataProtection
-git checkout v0.1.0-preview.1
-dotnet pack -c Release
-diff <(sha256sum artifacts/PostQuantum.DataProtection.0.1.0-preview.1.nupkg) <(sha256sum from-nuget/PostQuantum.DataProtection.0.1.0-preview.1.nupkg)
+sourcelink test PostQuantum.DataProtection.<version>.nupkg
+# Reproduce the build from the matching commit and compare SHA-256:
+git checkout v<version>
+dotnet pack -c Release -o /tmp/local
+sha256sum /tmp/local/PostQuantum.DataProtection.<version>.nupkg
 ```
 
-## Building from source
+## Testing
 
 ```bash
-dotnet build      # builds net8.0, net9.0, net10.0
-dotnet test       # roundtrip, tamper, key-store, envelope decoder, ASP.NET Core integration
-dotnet pack -c Release
+dotnet build PostQuantum.DataProtection.slnx -c Release
+dotnet test PostQuantum.DataProtection.slnx -c Release --no-build
 ```
+
+**87 tests** across four suites — core, AzureKeyVault, Aws, Testing. Coverage gate at ≥ 85% line
+/ ≥ 75% branch (current 89.5% line / 78.6% branch). Property-based fuzz-lite contract tests
+drive 30 000 random inputs through both decoders on every run; a standalone SharpFuzz harness in
+`fuzz/` is set up for AFL-driven exploration.
+
+## Requirements
+
+- .NET **8.0**, **9.0**, or **10.0** (multi-targeted).
+- A registered `PostQuantum.KeyManagement` `IContentKeyProvider` for the classical KEK layer.
 
 ## Project status
 
-`0.1.0-preview.1` — first public preview. API and envelope wire-format may still change before
-`1.0`; breaking changes are called out in `PackageReleaseNotes`, `CHANGELOG.md`, and this section.
-The path to `1.0`, cloud-backed key stores, FIPS validation considerations, and external review
-is mapped out in [`future.md`](future.md).
+`0.1.0-preview.4`. The API surface and the binary envelope wire format are versioned and
+backward-compatible across the preview series (every envelope written by `preview.1` decodes
+under `preview.4`). Pre-`1.0` the wire format may still change with a deliberate version bump
+and a `CHANGELOG.md` note. The path to `1.0` is mapped in [`future.md`](future.md).
+
+The two remaining gates on `1.0` are calendar-time, not code-time: third-party cryptographic
+review, and at least one cloud-backed key store in real production use. Both are tracked in
+[`KNOWN-GAPS.md` §D](KNOWN-GAPS.md#d-honest-gates-on-10).
 
 ## License
 

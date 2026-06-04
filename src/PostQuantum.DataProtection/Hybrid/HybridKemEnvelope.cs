@@ -165,7 +165,7 @@ public sealed record HybridKemEnvelope
         }
 
         byte modeByte = PortableEncoding.ReadByte(data, ref offset);
-        if (modeByte > (byte)HybridKemMode.Hybrid)
+        if (modeByte > (byte)HybridKemMode.XWingHybrid)
         {
             throw new FormatException($"Unknown KEM mode: {modeByte}.");
         }
@@ -176,9 +176,10 @@ public sealed record HybridKemEnvelope
         byte[] kemCiphertext = PortableEncoding.ReadBytes(data, ref offset);
         string classicalWrappedKey = PortableEncoding.ReadString(data, ref offset);
 
-        if (mode == HybridKemMode.Hybrid && classicalWrappedKey.Length == 0)
+        bool needsClassical = mode is HybridKemMode.Hybrid or HybridKemMode.XWingHybrid;
+        if (needsClassical && classicalWrappedKey.Length == 0)
         {
-            throw new FormatException("Hybrid envelope is missing the classical wrapped-key token.");
+            throw new FormatException($"{mode} envelope is missing the classical wrapped-key token.");
         }
 
         if (mode == HybridKemMode.MlKemOnly && classicalWrappedKey.Length != 0)

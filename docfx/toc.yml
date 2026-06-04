@@ -1,0 +1,18 @@
+- name: Overview
+  href: index.md
+- name: API reference
+  href: api/
+- name: Threat model
+  href: ../docs/threat-model.md
+- name: Wire format
+  href: ../docs/wire-format.md
+- name: Deployment
+  href: ../docs/deployment.md
+- name: Migration
+  href: ../docs/migration.md
+- name: Benchmarks
+  href: ../docs/benchmarks.md
+- name: AOT
+  href: ../docs/aot.md
+- name: Supply chain
+  href: ../docs/supply-chain.md

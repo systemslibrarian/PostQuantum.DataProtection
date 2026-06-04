@@ -46,4 +46,7 @@ public sealed class InMemoryKeyVaultSecretClient : IKeyVaultSecretClient
         _values[name] = value;
         return new ValueTask<string>(versionId.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
+
+    public ValueTask<bool> DeleteSecretAsync(string name, CancellationToken cancellationToken)
+        => new(_values.TryRemove(name, out _));
 }

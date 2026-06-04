@@ -1,0 +1,55 @@
+@page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.DataProtection
+@inject IDataProtectionProvider DataProtection
+
+<h1>PostQuantum.DataProtection — Blazor Server sample</h1>
+
+<AuthorizeView>
+    <Authorized>
+        <p>Signed in as <strong>@context.User.Identity!.Name</strong>.</p>
+        <form method="post" action="/login/sign-out">
+            <button>Sign out</button>
+        </form>
+    </Authorized>
+    <NotAuthorized>
+        <p>Not signed in.</p>
+        <form method="post" action="/login/sign-in">
+            <input name="username" placeholder="username" required />
+            <button>Sign in</button>
+        </form>
+    </NotAuthorized>
+</AuthorizeView>
+
+<hr />
+
+<h2>Direct IDataProtector roundtrip</h2>
+<p>
+    The button calls <code>protector.Protect(plaintext)</code> and immediately
+    <code>protector.Unprotect(...)</code>. The Data Protection key that produced this token is
+    itself wrapped in a <code>pqEnvelope</code> on disk.
+</p>
+<button @onclick="Roundtrip">Run roundtrip</button>
+
+@if (_token is not null)
+{
+    <pre style="background:#f5f5f5;padding:1em;overflow:auto"><strong>Plaintext:</strong> @_plaintext
+
+<strong>Protected token:</strong> @_token
+
+<strong>Roundtripped:</strong> @_roundtripped</pre>
+}
+
+@code {
+    string? _plaintext;
+    string? _token;
+    string? _roundtripped;
+
+    void Roundtrip()
+    {
+        IDataProtector protector = DataProtection.CreateProtector("Blazor.Sample.Demo");
+        _plaintext = $"hello at {DateTimeOffset.UtcNow:O}";
+        _token = protector.Protect(_plaintext);
+        _roundtripped = protector.Unprotect(_token);
+    }
+}

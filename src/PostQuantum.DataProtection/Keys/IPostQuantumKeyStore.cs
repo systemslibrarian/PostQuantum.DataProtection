@@ -31,4 +31,20 @@ public interface IPostQuantumKeyStore
     /// must leave either the prior state or the new state on disk, never a torn write.
     /// </summary>
     ValueTask SaveAsync(PostQuantumKeyPair newActive, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes a non-active keypair from the store. Default-implemented as <em>not supported</em> so
+    /// existing custom stores keep compiling; override to enable pruning.
+    /// </summary>
+    /// <remarks>
+    /// <b>Operator hazard.</b> Pruning a keypair makes every Data Protection key wrapped under it
+    /// unreadable for the rest of time. Stores must refuse to delete the active keypair (the one
+    /// whose id matches <see cref="ActiveKeyId"/>); pruning the active keypair would leave the host
+    /// unable to issue any new encryption. Use
+    /// <see cref="PostQuantumKeyManager.PruneOlderThanAsync"/> for the policy-aware entry point.
+    /// </remarks>
+    /// <returns><see langword="true"/> if a keypair was removed; <see langword="false"/> if the id was unknown.</returns>
+    ValueTask<bool> DeleteAsync(string keyId, CancellationToken cancellationToken = default)
+        => throw new NotSupportedException(
+            $"{GetType().Name} does not support pruning. Override IPostQuantumKeyStore.DeleteAsync to enable PostQuantumKeyManager.PruneOlderThanAsync against this store.");
 }

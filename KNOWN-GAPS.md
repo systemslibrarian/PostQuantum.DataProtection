@@ -1,122 +1,157 @@
-# Known Gaps
+# Known gaps — what's deliberate, what's coming, what's done
 
-This file is the honest counterpart to the README. It lists what `PostQuantum.DataProtection` does
-**not** do yet, what is deliberately out of scope, and where the design has sharp edges. If
-something here surprises you *after* you shipped, that is a documentation bug — please open an
-issue.
+This file is the honest counterpart to the README. It's organised the way a reviewer reads it:
 
-Status as of **`0.1.0-preview.1`**.
+- **§A Closed.** Things people sometimes ask about that the library actually ships.
+- **§B Deliberate.** Scope decisions we have made and don't intend to change.
+- **§C Roadmap.** Things we know would be useful and are working toward.
+- **§D Honest gates.** Things that block `1.0` and are calendar-time, not code-time.
 
-For the precise threat model and the security invariants we DO commit to, see
-[`docs/threat-model.md`](docs/threat-model.md). For the concrete plan to close the cloud-store,
-FIPS, and audit gaps below, see [`future.md`](future.md).
+We would rather under-claim and ship than overstate. If something here surprises you *after* you
+shipped, that is a documentation bug — please open an issue.
 
-## 1. Single KEM, single parameter set
-
-- **ML-KEM-768 only.** ML-KEM-512 (smaller envelopes, lower security category) and ML-KEM-1024
-  (larger envelopes, higher category) are not selectable in this release. The choice is hard-coded
-  to `MLKemParameters.ml_kem_768` so reviewers can read the security level from the source.
-- **No alternative KEMs.** HQC, BIKE, NTRU, X-Wing — none ship here. If you need an alternative
-  PQ primitive (or a hybrid where the classical layer is also asymmetric, e.g. X25519), this
-  release is not a fit.
-- Parametrisation is roadmap. The internal abstraction is already split (`MlKem` is the only
-  KEM-specific file), so adding a second algorithm is mechanical when the time comes.
-
-## 2. No cloud-backed PQ key stores yet
-
-- Only the file-backed `FilePostQuantumKeyStore` ships. Azure Key Vault, AWS KMS, GCP KMS, and
-  HSM-backed stores are roadmap.
-- The extension point is already there — implement `IPostQuantumKeyStore`. The bundled file store
-  is the reference implementation: see how it handles atomic writes (temp file + `File.Replace`
-  with bounded retry on Windows-specific `IOException`) for the shape a production-grade store
-  should match.
-- Cloud stores will ship as separate packages
-  (`PostQuantum.DataProtection.AzureKeyVault`, etc.) so the core package stays dependency-light.
-
-## 3. Not FIPS 140-validated
-
-- The library uses the **standard** BouncyCastle build for ML-KEM. BouncyCastle distributes a
-  separate **FIPS 140-3-validated** module, but this release does not link against it.
-- Deployments under FIPS 140-3 compliance regimes should not use this release.
-- A path that routes ML-KEM through the BC FIPS module — without forcing every consumer to pay
-  the FIPS module's licensing/distribution cost — is in [`future.md`](future.md).
-
-## 4. Not a cross-party KEM
-
-- This library is for **at-rest** wrapping of Data Protection keys. It does **not** negotiate
-  post-quantum session keys between two parties on the wire (no TLS hybrid groups, no IKE PQ
-  exchange, no Noise hybrid handshakes). If that is what you need, look at the TLS 1.3 hybrid
-  groups landing in cloud frontends and the
-  [hybrid PQ ECH](https://datatracker.ietf.org/doc/draft-ietf-tls-hybrid-design/) work.
-- The PQ public key never leaves the host in the documented flow. If you choose to extract it for
-  a separate purpose, you are off the supported path.
-
-## 5. PQ keypair rotation must keep old keys readable
-
-- The bundled `FilePostQuantumKeyStore` keeps every keypair ever generated so payloads encrypted
-  to older PQ public keys still decrypt after a rotation. This is by design — Data Protection
-  rotates its own keys aggressively, and we should not silently invalidate yesterday's session
-  cookies.
-- The keystore file grows by ~3.5 KiB per rotation (ML-KEM-768 sizes plus envelope overhead).
-  At one rotation per quarter that is well under a kilobyte per month; at one per day it is still
-  trivial for several years. There is currently **no eviction**: if you want to prune very old
-  keypairs you must do so manually, accepting that any Data Protection keys still wrapped under
-  those PQ keypairs become unreadable.
-- A documented retention/eviction story is on the roadmap.
-
-## 6. Sync-over-async at the IXmlEncryptor seam
-
-- ASP.NET Core's `IXmlEncryptor` / `IXmlDecryptor` contracts are **synchronous**. The
-  post-quantum operations (ML-KEM encapsulation/decapsulation, AES-GCM, optional classical KEK
-  unwrap) are awaited via `.AsTask().GetAwaiter().GetResult()` inside the encryptor/decryptor.
-- This is the same pattern Data Protection itself uses for its built-in encryptors, runs on the
-  startup-time key-loader thread, and is not a request-path hot loop. ML-KEM-768 encapsulation is
-  microseconds on modern hardware; the classical layer adds a single AES-GCM unwrap.
-- A request that hot-loops through new Data Protection keys at extreme rate could in theory
-  observe the cost. If that ever shows up in profiling, the answer is the same as for stock Data
-  Protection: warm the key ring at startup, not under load.
-
-## 7. The host KEK is still load-bearing
-
-- The classical layer is a `WrappedContentKey` from `PostQuantum.KeyManagement`. Its strength is
-  bounded by the strength of the host passphrase and the Argon2id profile. If both the keystore
-  file and the host passphrase are exfiltrated, the chain ends at the classical layer.
-- This is by design — the library refuses to invent a new secret-storage primitive. The
-  recommended posture is a strong passphrase, in a real secret store, at `Moderate` or higher
-  Argon2id work factor.
-
-## 8. Not independently audited yet
-
-- Written with care, automated tests, hostile-input tests, static analysers, and a published
-  threat model — but it has **not** had a third-party cryptographic audit. Treat `0.x` accordingly.
-- The plan to commission a review is laid out in [`future.md`](future.md). It is gated behind
-  the cloud-store extension point landing — reviewing a moving target wastes the reviewer's time.
-
-## 9. Wire format is versioned but pre-1.0
-
-- The envelope format (`HybridKemEnvelope`, version 1) and the keypair format
-  (`PostQuantumKeyPair`, version 1) carry explicit version bytes and the decoder rejects unknown
-  versions. We will keep `Decode` able to read prior versions whenever feasible.
-- That said, **pre-1.0 we may bump these versions in breaking ways** when something genuinely
-  warrants it. We will name the change in `PackageReleaseNotes` and the README status section,
-  and ship a migration note in `CHANGELOG.md`. Do not depend on byte-for-byte compatibility
-  across `0.x` minor versions for now.
+Status as of **`0.1.0-preview.4`**.
 
 ---
 
-## Roadmap (not promises, intentions)
+## §A Closed in `0.1.0-preview.4`
 
-- ✅ **Done in `0.1`:** ML-KEM-768 + AES-256-GCM hybrid envelope; one-line
-  `ProtectKeysWithPostQuantum`; atomic file-backed key store; sync-safe IXmlEncryptor; safe
-  diagnostics; hostile-input-resistant decoders; threat model; SBOM-friendly metadata;
-  pinned-and-patched `System.Security.Cryptography.Xml`.
-- Cloud-backed PQ key stores (Azure Key Vault, AWS KMS, GCP KMS) as separate packages.
-- Selectable ML-KEM parameter set (512 / 768 / 1024).
-- Optional X-Wing-style hybrid combiner alongside the existing HKDF combiner.
-- Eviction / retention policy for old PQ keypairs.
-- BC FIPS module integration path for FIPS 140-3 deployments.
-- External cryptographic review.
-- `1.0` once the above are in real use.
+In addition to the items below, this preview closed four §C roadmap items in one push:
+
+- ✅ **§C1 Selectable ML-KEM parameter set.** `MlKemParameterSet { Kem512, Kem768, Kem1024 }` on
+  `PostQuantumDataProtectionOptions.ParameterSet`. Existing keypairs continue to decrypt under
+  their original set regardless of the new value.
+- ✅ **§C2 Retention / eviction.** `IPostQuantumKeyStore.DeleteAsync` (default-implemented as
+  not-supported, overridden by every shipped store) and
+  `PostQuantumKeyManager.PruneOlderThanAsync(threshold)` with safety-first semantics — refuses to
+  delete the active keypair.
+- ✅ **§C5 X-Wing-style combiner.** New `HybridKemMode.XWingHybrid` value. SHA3-256 over the
+  ML-KEM ciphertext, ML-KEM shared secret, classical secret, and domain label. Sharper combiner
+  in some adversary models; backward-compatible (old envelopes keep decoding).
+- ✅ **§C7 Redis-backed PQ key store.** `PostQuantum.DataProtection.Redis` package — natural pair
+  with `PersistKeysToStackExchangeRedis` so the DP keys and the PQ keypairs that wrap them live
+  in the same Redis instance.
+
+### Other
+
+These are listed because earlier previews didn't have them — if you read older blog posts or
+gists, they may say otherwise. Today they ship.
+
+- ✅ **Cloud-backed PQ key stores.** `PostQuantum.DataProtection.AzureKeyVault` and
+  `PostQuantum.DataProtection.Aws` both ship as separate packages with the same shape: one secret
+  per keypair, one "active" pointer secret, a narrow client seam so unit tests don't need a real
+  cloud account.
+- ✅ **Test fakes for consumer projects.** `PostQuantum.DataProtection.Testing` ships
+  `FakePostQuantumKeyStore` plus the one-line `AddPostQuantumDataProtectionTesting()` so your
+  tests don't have to stand up the full chain.
+- ✅ **OpenTelemetry one-liner.** `PostQuantum.DataProtection.OpenTelemetry` wires the built-in
+  Meter and ActivitySource into a `MeterProviderBuilder` / `TracerProviderBuilder` with one call.
+- ✅ **`ILogger<T>` integration** with pinned EventIds across encryptor, decryptor, key manager,
+  and the hosted rotation service. `NullLogger` fallback when logging isn't configured.
+- ✅ **Scheduled PQ keypair rotation** via the `RotationInterval` option on
+  `PostQuantumDataProtectionOptions`. `TimeSpan.Zero` disables; any positive value enables.
+- ✅ **`appsettings.json`-only wiring.** `ProtectKeysWithPostQuantum(IConfigurationSection)`
+  binds the option object directly from configuration.
+- ✅ **Actionable error messages.** Every option / file / wiring error names the offending
+  configuration key, the file path involved, the fix, and a doc reference.
+- ✅ **CLI diagnostics tool.** `PostQuantum.DataProtection.Cli` ships the `pq-dp` global tool:
+  `pq-dp inspect <key.xml>` prints envelope routing fields and byte sizes without exposing any
+  secret material.
+- ✅ **Migration guide** for moving off DPAPI, Azure Key Vault key wrap, or certificate-based DP
+  protection without invalidating live cookies.
+- ✅ **DocFX site + GitHub Pages workflow** for the rendered API reference.
+- ✅ **NIST ACVP / FIPS 203 KAT** against a published vector — the FIPS-conformance test, not the
+  "self-consistent" test.
+
+## §B Deliberate scope
+
+These are decisions we have made and are not planning to change. None of them are accidents.
+
+### B1. ML-KEM-768 is the only KEM, hybrid is the only production mode
+
+The KEM is hard-coded to `MLKemParameters.ml_kem_768`. The combiner is HKDF-SHA-256 over the
+ML-KEM secret concatenated with the classical secret. This is a deliberate "secure by default,
+not configurable to insecurity" stance for `0.x`. Selectable parameter sets are §C1 if you need
+ML-KEM-512 or 1024.
+
+### B2. The host KEK is load-bearing
+
+The classical layer wraps the PQ secret key with a `PostQuantum.KeyManagement`
+`IContentKeyProvider`. The strength of that wrap is bounded by the strength of the host
+passphrase and the chosen Argon2id profile. If both the keystore *and* the passphrase are
+exfiltrated, the chain ends. This is by design — we don't invent a new secret-storage primitive.
+Use a strong passphrase, in a real secret store, at `KekWorkFactor.Moderate` or higher.
+
+### B3. Storage extension lives outside the core
+
+`IPostQuantumKeyStore` is the only seam we ship for "where do the keypairs live." Cloud-store
+implementations are separate packages so the core stays dependency-light. Redis, file system,
+cloud blob, KMS-bound — implement the interface or use a shipped one. We don't pull in the AWS
+SDK to use file storage.
+
+### B4. We don't ship our own primitives
+
+ML-KEM comes from BouncyCastle (FIPS 203). AES-256-GCM, HKDF-SHA-256, SHA-256, HMAC-SHA-256, and
+the CSPRNG come from `System.Security.Cryptography`. Argon2id comes from
+`Konscious.Security.Cryptography.Argon2` (transitive via `PostQuantum.KeyManagement`). We will
+not re-implement primitives.
+
+### B5. The library is for at-rest wrapping
+
+It wraps the ASP.NET Core Data Protection key directory and the long-lived ML-KEM keypair. It
+does **not** negotiate post-quantum session keys between two parties on the wire. If you want
+TLS 1.3 hybrid groups, that's a network-stack concern — different layer. The PQ public key in
+this library does not leave the host in the supported flow.
+
+## §C Roadmap
+
+Things we know would be useful and are working toward, in rough priority order. None of these are
+promises; all of them are intentions backed by some thought already.
+
+### C3. BCL ML-KEM on net10.0+
+
+.NET 10 ships ML-KEM in `System.Security.Cryptography` directly. A future preview will provide a
+`PostQuantum.DataProtection.Bcl` path that routes through the BCL on `net10.0` and falls back to
+BouncyCastle on `net8.0;net9.0`. That removes the BouncyCastle reflection dependency on the
+`net10.0` target and opens the door to AOT compatibility on it.
+
+### C4. AOT compatibility (on the BCL ML-KEM path)
+
+Gated behind C3. `PostQuantum.KeyManagement` already sets `IsAotCompatible=true`; the only thing
+preventing parity here is the BouncyCastle reflection footprint. Once we have a BCL-only path,
+AOT becomes turn-on-able for that target.
+
+### C6. FIPS 140-3 path via the BC FIPS module
+
+A `PostQuantum.DataProtection.Fips` shim that routes ML-KEM through the BouncyCastle FIPS
+module. Two open questions: licensing / distribution (BC FIPS is a separate licensing path) and
+per-target framework support. Consumers under FIPS 140-3 compliance regimes shouldn't deploy
+`0.1.0-preview.*` until this lands.
+
+## §D Honest gates on `1.0`
+
+These are calendar-time, not code-time.
+
+### D1. External cryptographic review
+
+Pre-`1.0`, no third-party audit. Written with care, automated tests, static analysers,
+hostile-input tests, a fuzz harness, a NIST ACVP / FIPS 203 KAT, and a published threat model —
+but no external review. The plan to commission a review is in [`future.md`](future.md). It is
+gated behind the cloud-store extension point being in real production use so the reviewer's time
+isn't spent on a moving target.
+
+### D2. Real production use of at least one cloud-backed store
+
+`PostQuantum.DataProtection.AzureKeyVault` and `PostQuantum.DataProtection.Aws` need to be
+running in a real customer deployment before we lock the abstraction at `1.0`. The shape we have
+now is what we believe; production will tell us what we missed.
+
+### D3. Wire-format SemVer commitment
+
+Pre-`1.0`, we may bump `HybridKemEnvelope.FormatVersion` or
+`PostQuantumKeyPair`'s format version in breaking ways when something genuinely warrants it. The
+versioning is in place from `0.1`; the *commitment* not to break it ships at `1.0`. Until then,
+read `CHANGELOG.md` before upgrading.
 
 ---
 

@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>PostQuantum.DataProtection.OpenTelemetry</RootNamespace>
+    <AssemblyName>PostQuantum.DataProtection.OpenTelemetry</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>PostQuantum.DataProtection.OpenTelemetry</PackageId>
+    <Version>0.1.0-preview.4</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.4</FileVersion>
+    <Authors>Paul Clark</Authors>
+    <Company>Systems Librarian</Company>
+    <Product>PostQuantum.DataProtection.OpenTelemetry</Product>
+    <Title>PostQuantum.DataProtection.OpenTelemetry — one-line OTel wiring</Title>
+    <Description>OpenTelemetry instrumentation helper for PostQuantum.DataProtection. One-line wiring: builder.AddPostQuantumDataProtectionInstrumentation() on a MeterProviderBuilder and a TracerProviderBuilder, and the PQ data-protection counters / histograms / activities flow into whatever exporter the host configures (Prometheus, OTLP, Console, etc.).</Description>
+    <PackageTags>post-quantum;pqc;opentelemetry;otel;metrics;tracing;observability;aspnetcore;data-protection</PackageTags>
+    <PackageProjectUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright (c) Paul Clark</Copyright>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReleaseNotes>0.1.0-preview.4: First public preview. OpenTelemetry helper for PostQuantum.DataProtection — one-line wiring of the Meter and ActivitySource into both MeterProviderBuilder and TracerProviderBuilder. No SDK dependency leaked into the core package; this shim is opt-in.</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
+    <PackageReference Include="OpenTelemetry.Api" Version="1.15.3" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+</Project>

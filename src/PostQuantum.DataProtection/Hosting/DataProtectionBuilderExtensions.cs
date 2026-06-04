@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PostQuantum.DataProtection;
 using PostQuantum.DataProtection.Hosting;
@@ -40,8 +42,12 @@ public static class PostQuantumDataProtectionBuilderExtensions
         if (string.IsNullOrWhiteSpace(snapshot.KeyStorePath))
         {
             throw new InvalidOperationException(
-                "PostQuantumDataProtectionOptions.KeyStorePath is required. " +
-                "Point it at a writable file location; the long-lived ML-KEM keypair will live there.");
+                "PostQuantumDataProtectionOptions.KeyStorePath is required but was empty. " +
+                "Set it to a writable file path; the long-lived ML-KEM-768 keypair will be persisted there " +
+                "(e.g. \"keys/pq-keystore.txt\"). " +
+                "If you are running in a container, make sure the path lives on a mounted, durable volume — " +
+                "container-local disk is lost on every restart, which is equivalent to losing every Data Protection key. " +
+                "See docs/deployment.md §2 (pre-deployment checklist) for the production posture.");
         }
 
         builder.Services.AddOptions<PostQuantumDataProtectionOptions>().Configure(configure);
@@ -50,7 +56,9 @@ public static class PostQuantumDataProtectionBuilderExtensions
         {
             IContentKeyProvider contentKeys = sp.GetRequiredService<IContentKeyProvider>();
             IPostQuantumKeyStore store = sp.GetRequiredService<IPostQuantumKeyStore>();
-            return new PostQuantumKeyManager(contentKeys, store);
+            ILogger<PostQuantumKeyManager>? logger = sp.GetService<ILogger<PostQuantumKeyManager>>();
+            PostQuantumDataProtectionOptions opts = sp.GetRequiredService<IOptions<PostQuantumDataProtectionOptions>>().Value;
+            return new PostQuantumKeyManager(contentKeys, store, opts.ParameterSet, logger);
         });
 
         // Data Protection's IActivator activates PostQuantumXmlDecryptor via
@@ -60,13 +68,19 @@ public static class PostQuantumDataProtectionBuilderExtensions
         // as a DI service — that would force ASP.NET Core's strict-DI validator to inspect both
         // constructors and fail on "ambiguous". The activator pattern does not need it.
 
+        // Register the scheduled-rotation hosted service when an interval is set. The service
+        // self-disables at runtime if RotationInterval == TimeSpan.Zero, so the registration is
+        // always safe regardless of config.
+        builder.Services.AddHostedService<PostQuantumRotationHostedService>();
+
         // Wire the encryptor onto Data Protection's key-management options. The XmlEncryptor
         // setter is the official seam Data Protection exposes for at-rest key wrapping.
-        builder.Services.AddOptions<DataProtectionKeyManagementOptions>().Configure<PostQuantumKeyManager, IContentKeyProvider>(
-            (keyManagementOptions, pqKeys, contentKeys) =>
+        builder.Services.AddOptions<DataProtectionKeyManagementOptions>().Configure<PostQuantumKeyManager, IContentKeyProvider, ILoggerFactory>(
+            (keyManagementOptions, pqKeys, contentKeys, loggerFactory) =>
             {
                 HybridKemMode mode = snapshot.Mode;
-                keyManagementOptions.XmlEncryptor = new PostQuantumXmlEncryptor(pqKeys, contentKeys, mode);
+                ILogger<PostQuantumXmlEncryptor> logger = loggerFactory.CreateLogger<PostQuantumXmlEncryptor>();
+                keyManagementOptions.XmlEncryptor = new PostQuantumXmlEncryptor(pqKeys, contentKeys, mode, logger);
             });
 
         return builder;
@@ -77,6 +91,32 @@ public static class PostQuantumDataProtectionBuilderExtensions
     /// </summary>
     public static IDataProtectionBuilder ProtectKeysWithPostQuantum(this IDataProtectionBuilder builder, string keyStorePath)
         => builder.ProtectKeysWithPostQuantum(o => o.KeyStorePath = keyStorePath);
+
+    /// <summary>
+    /// Binds <see cref="PostQuantumDataProtectionOptions"/> from a configuration section and registers
+    /// the chain. The section's keys map directly to the option property names — typical
+    /// <c>appsettings.json</c>:
+    /// <code>
+    /// "PostQuantumDataProtection": {
+    ///   "KeyStorePath": "keys/pq-keystore.txt",
+    ///   "Mode": "Hybrid"
+    /// }
+    /// </code>
+    /// </summary>
+    public static IDataProtectionBuilder ProtectKeysWithPostQuantum(this IDataProtectionBuilder builder, IConfigurationSection section)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(section);
+        if (!section.Exists())
+        {
+            throw new InvalidOperationException(
+                $"Configuration section '{section.Path}' is missing or empty. " +
+                "Add a PostQuantumDataProtection section to appsettings.json (or your secret store) with at least KeyStorePath set. " +
+                "See README.md § \"Configure from appsettings.json\" for the full schema.");
+        }
+
+        return builder.ProtectKeysWithPostQuantum(section.Bind);
+    }
 }
 
 /// <summary>

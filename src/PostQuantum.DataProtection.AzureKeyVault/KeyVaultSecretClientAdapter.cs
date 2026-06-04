@@ -45,4 +45,18 @@ internal sealed class KeyVaultSecretClientAdapter : IKeyVaultSecretClient
         Response<KeyVaultSecret> response = await _inner.SetSecretAsync(new KeyVaultSecret(name, value), cancellationToken).ConfigureAwait(false);
         return response.Value.Properties.Version;
     }
+
+    public async ValueTask<bool> DeleteSecretAsync(string name, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Initiate the delete and return immediately — Key Vault soft-delete handles the rest.
+            await _inner.StartDeleteSecretAsync(name, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            return false;
+        }
+    }
 }

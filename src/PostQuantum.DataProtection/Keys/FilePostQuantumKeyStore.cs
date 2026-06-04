@@ -67,6 +67,33 @@ public sealed class FilePostQuantumKeyStore : IPostQuantumKeyStore
     }
 
     /// <inheritdoc />
+    public ValueTask<bool> DeleteAsync(string keyId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(keyId);
+        cancellationToken.ThrowIfCancellationRequested();
+        lock (_sync)
+        {
+            EnsureLoaded();
+            if (string.Equals(keyId, _activeKeyId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Refusing to delete the active PQ keypair '{keyId}'. " +
+                    "Rotate first so a new keypair becomes active, then prune the previous one.");
+            }
+
+            int index = _pairs.FindIndex(p => string.Equals(p.KeyId, keyId, StringComparison.Ordinal));
+            if (index < 0)
+            {
+                return new ValueTask<bool>(false);
+            }
+
+            _pairs.RemoveAt(index);
+            WriteAtomically(_path, _pairs, _activeKeyId);
+            return new ValueTask<bool>(true);
+        }
+    }
+
+    /// <inheritdoc />
     public ValueTask SaveAsync(PostQuantumKeyPair newActive, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(newActive);

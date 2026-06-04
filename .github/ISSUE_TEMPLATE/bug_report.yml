@@ -1,0 +1,78 @@
+name: Bug report
+description: Something broke. Help us reproduce and fix it.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Do not file security vulnerabilities here** — use
+        [GitHub Security Advisories](https://github.com/systemslibrarian/PostQuantum.DataProtection/security/advisories/new)
+        or follow [SECURITY.md](https://github.com/systemslibrarian/PostQuantum.DataProtection/blob/main/SECURITY.md).
+
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      placeholder: "0.1.0-preview.3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tfm
+    attributes:
+      label: Target framework
+      options:
+        - net8.0
+        - net9.0
+        - net10.0
+        - Other (please specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro steps
+      description: |
+        The fastest way to a fix is a minimal repro. Configuration + the smallest amount of code
+        that triggers the issue.
+      placeholder: |
+        1. Configure DI as follows: ...
+        2. Call ...
+        3. See exception ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: Include the full exception with stack trace if any. **Redact secrets first.**
+    validations:
+      required: true
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      placeholder: |
+        - OS: Windows 11 / Ubuntu 24.04 / macOS 14
+        - .NET SDK: dotnet --version
+        - Host: ASP.NET Core / Worker Service / Other
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I've read KNOWN-GAPS.md and confirmed this isn't a documented limitation.
+          required: true
+        - label: This is not a security vulnerability (those go to the Security Advisories page).
+          required: true

@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using PostQuantum.DataProtection.Diagnostics;
 using PostQuantum.DataProtection.Hybrid;
 using PostQuantum.DataProtection.Internal;
@@ -42,22 +44,58 @@ public sealed class PostQuantumKeyManager : IDisposable
     private readonly IPostQuantumKeyStore _store;
     private readonly SemaphoreSlim _loadLock = new(1, 1);
     private readonly object _stateLock = new();
+    private readonly ILogger<PostQuantumKeyManager> _logger;
+    private readonly MlKemParameterSet _parameterSet;
 
     private bool _loaded;
     private Dictionary<string, PostQuantumKeyPair> _byId = new(StringComparer.Ordinal);
     private string? _activeKeyId;
 
     /// <summary>Creates a manager that wraps secret keys via <paramref name="contentKeys"/> and persists keypairs in <paramref name="store"/>.</summary>
-    public PostQuantumKeyManager(IContentKeyProvider contentKeys, IPostQuantumKeyStore store)
+    public PostQuantumKeyManager(IContentKeyProvider contentKeys, IPostQuantumKeyStore store, ILogger<PostQuantumKeyManager>? logger = null)
+        : this(contentKeys, store, MlKemParameterSet.Kem768, logger)
+    {
+    }
+
+    /// <summary>
+    /// Creates a manager that mints new keypairs under <paramref name="parameterSet"/>. Existing
+    /// keypairs in the store continue to decrypt under their original parameter set regardless of
+    /// this argument — the wire format records the set per keypair.
+    /// </summary>
+    public PostQuantumKeyManager(
+        IContentKeyProvider contentKeys,
+        IPostQuantumKeyStore store,
+        MlKemParameterSet parameterSet,
+        ILogger<PostQuantumKeyManager>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(contentKeys);
         ArgumentNullException.ThrowIfNull(store);
         _contentKeys = contentKeys;
         _store = store;
+        _parameterSet = parameterSet;
+        _logger = logger ?? NullLogger<PostQuantumKeyManager>.Instance;
     }
 
     /// <summary>Releases the load-coordination primitive. The content-key provider is not owned.</summary>
     public void Dispose() => _loadLock.Dispose();
+
+    private static readonly Action<ILogger, int, string, Exception?> LogLoaded =
+        LoggerMessage.Define<int, string>(
+            LogLevel.Information,
+            new EventId(10, "PqKeyManagerLoaded"),
+            "Loaded {Count} PQ keypair(s) from store; active key is '{ActiveKeyId}'.");
+
+    private static readonly Action<ILogger, Exception?> LogFirstRunGenerating =
+        LoggerMessage.Define(
+            LogLevel.Information,
+            new EventId(11, "PqKeyManagerFirstRun"),
+            "PQ keystore is empty — generating the inaugural ML-KEM-768 keypair.");
+
+    private static readonly Action<ILogger, string, Exception?> LogRotated =
+        LoggerMessage.Define<string>(
+            LogLevel.Information,
+            new EventId(12, "PqKeyManagerRotated"),
+            "Generated new active PQ keypair '{KeyId}'. Old keypairs remain loaded and continue to decrypt previously-wrapped Data Protection keys.");
 
     /// <summary>Id of the active keypair (the one fresh encryptions target). Triggers a load on first read.</summary>
     public async ValueTask<string> GetActiveKeyIdAsync(CancellationToken cancellationToken = default)
@@ -70,10 +108,10 @@ public sealed class PostQuantumKeyManager : IDisposable
     }
 
     /// <summary>
-    /// Returns the public key bytes of the keypair identified by <paramref name="keyId"/>, or of the
-    /// active keypair when <paramref name="keyId"/> is null.
+    /// Returns the public key bytes and algorithm label of the keypair identified by
+    /// <paramref name="keyId"/>, or of the active keypair when <paramref name="keyId"/> is null.
     /// </summary>
-    public async ValueTask<(string KeyId, byte[] PublicKey)> GetPublicKeyAsync(string? keyId = null, CancellationToken cancellationToken = default)
+    public async ValueTask<(string KeyId, string Algorithm, byte[] PublicKey)> GetPublicKeyAsync(string? keyId = null, CancellationToken cancellationToken = default)
     {
         await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
         lock (_stateLock)
@@ -87,7 +125,7 @@ public sealed class PostQuantumKeyManager : IDisposable
                     $"No PQ keypair with id '{targetId}' is loaded. Re-create the manager with the store that produced it.");
             }
 
-            return (pair.KeyId, (byte[])pair.PublicKey.Clone());
+            return (pair.KeyId, pair.Algorithm, (byte[])pair.PublicKey.Clone());
         }
     }
 
@@ -116,7 +154,10 @@ public sealed class PostQuantumKeyManager : IDisposable
         byte[] secretKey = await UnwrapSecretKeyAsync(_contentKeys, pair.WrappedSecretKey, cancellationToken).ConfigureAwait(false);
         try
         {
-            return MlKem.Decapsulate(secretKey, kemCiphertext.Span);
+            // The parameter set is recorded on the keypair via the Algorithm label so envelopes
+            // wrapped under earlier (or later) parameter-set choices keep decrypting correctly.
+            MlKemParameterSet set = MlKem.ParseAlgorithmLabel(pair.Algorithm);
+            return MlKem.Decapsulate(secretKey, kemCiphertext.Span, set);
         }
         finally
         {
@@ -133,6 +174,48 @@ public sealed class PostQuantumKeyManager : IDisposable
     {
         await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
         return await RotateCoreAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Removes every keypair created before <paramref name="threshold"/> that is not currently
+    /// active. Uses the store's <see cref="IPostQuantumKeyStore.DeleteAsync"/> entry point.
+    /// </summary>
+    /// <remarks>
+    /// <b>Operator hazard.</b> Pruning a keypair makes every Data Protection key wrapped under it
+    /// unreadable. The conservative posture is to prune only keypairs whose creation date is older
+    /// than the maximum lifetime of any Data Protection key in your system (default 90 days plus
+    /// a generous safety margin).
+    /// </remarks>
+    /// <returns>The number of keypairs that were removed.</returns>
+    public async ValueTask<int> PruneOlderThanAsync(DateTimeOffset threshold, CancellationToken cancellationToken = default)
+    {
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+
+        PostQuantumKeyPair[] candidates;
+        string? activeId;
+        lock (_stateLock)
+        {
+            activeId = _activeKeyId;
+            candidates = _byId.Values
+                .Where(p => DateTimeOffset.FromUnixTimeMilliseconds(p.CreatedAtUnixMs) < threshold)
+                .Where(p => !string.Equals(p.KeyId, activeId, StringComparison.Ordinal))
+                .ToArray();
+        }
+
+        int removed = 0;
+        foreach (PostQuantumKeyPair pair in candidates)
+        {
+            if (await _store.DeleteAsync(pair.KeyId, cancellationToken).ConfigureAwait(false))
+            {
+                lock (_stateLock)
+                {
+                    _byId.Remove(pair.KeyId);
+                }
+                removed++;
+            }
+        }
+
+        return removed;
     }
 
     /// <summary>
@@ -161,15 +244,15 @@ public sealed class PostQuantumKeyManager : IDisposable
 
     private async ValueTask<string> RotateCoreAsync(CancellationToken cancellationToken)
     {
-        (byte[] publicKey, byte[] privateKey) = MlKem.GenerateKeyPair();
+        (byte[] publicKey, byte[] privateKey) = MlKem.GenerateKeyPair(_parameterSet);
         try
         {
             byte[] wrappedSk = await WrapSecretKeyAsync(_contentKeys, privateKey, cancellationToken).ConfigureAwait(false);
 
             var pair = new PostQuantumKeyPair
             {
-                KeyId = PostQuantumKeyPair.ComputeKeyId(publicKey),
-                Algorithm = MlKem.AlgorithmName,
+                KeyId = PostQuantumKeyPair.ComputeKeyId(publicKey, _parameterSet),
+                Algorithm = MlKem.AlgorithmLabel(_parameterSet),
                 PublicKey = (byte[])publicKey.Clone(),
                 WrappedSecretKey = wrappedSk,
                 CreatedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
@@ -184,6 +267,7 @@ public sealed class PostQuantumKeyManager : IDisposable
             }
 
             Telemetry.Rotations.Add(1);
+            LogRotated(_logger, pair.KeyId, null);
             return pair.KeyId;
         }
         finally
@@ -218,7 +302,12 @@ public sealed class PostQuantumKeyManager : IDisposable
 
             if (activeId is null)
             {
+                LogFirstRunGenerating(_logger, null);
                 _ = await RotateCoreAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                LogLoaded(_logger, pairs.Count, activeId, null);
             }
 
             Volatile.Write(ref _loaded, true);

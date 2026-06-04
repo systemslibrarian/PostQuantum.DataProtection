@@ -103,7 +103,7 @@ public sealed class FilePostQuantumKeyStoreTests
             Assert.Equal(newId, await pq.GetActiveKeyIdAsync());
 
             // Old keypair is still in the loaded set: encrypt under old, rotate, decrypt -> works.
-            (string activeId, byte[] _) = await pq.GetPublicKeyAsync(oldId);
+            (string activeId, string _, byte[] _) = await pq.GetPublicKeyAsync(oldId);
             Assert.Equal(oldId, activeId);
         }
         finally

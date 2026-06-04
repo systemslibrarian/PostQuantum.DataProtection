@@ -4,6 +4,8 @@ using System.Text;
 using System.Xml.Linq;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using PostQuantum.DataProtection.Diagnostics;
 using PostQuantum.DataProtection.Hybrid;
 using PostQuantum.DataProtection.Keys;
@@ -28,14 +30,16 @@ public sealed class PostQuantumXmlDecryptor : IXmlDecryptor
 {
     private readonly PostQuantumKeyManager _pqKeys;
     private readonly IContentKeyProvider _contentKeys;
+    private readonly ILogger<PostQuantumXmlDecryptor> _logger;
 
     /// <summary>Creates the decryptor with explicit dependencies. Intended for direct construction in tests.</summary>
-    public PostQuantumXmlDecryptor(PostQuantumKeyManager pqKeys, IContentKeyProvider contentKeys)
+    public PostQuantumXmlDecryptor(PostQuantumKeyManager pqKeys, IContentKeyProvider contentKeys, ILogger<PostQuantumXmlDecryptor>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(pqKeys);
         ArgumentNullException.ThrowIfNull(contentKeys);
         _pqKeys = pqKeys;
         _contentKeys = contentKeys;
+        _logger = logger ?? NullLogger<PostQuantumXmlDecryptor>.Instance;
     }
 
     /// <summary>
@@ -57,6 +61,7 @@ public sealed class PostQuantumXmlDecryptor : IXmlDecryptor
         ArgumentNullException.ThrowIfNull(services);
         _pqKeys = services.GetRequiredService<PostQuantumKeyManager>();
         _contentKeys = services.GetRequiredService<IContentKeyProvider>();
+        _logger = services.GetService<ILogger<PostQuantumXmlDecryptor>>() ?? NullLogger<PostQuantumXmlDecryptor>.Instance;
     }
 
     /// <inheritdoc />
@@ -74,7 +79,10 @@ public sealed class PostQuantumXmlDecryptor : IXmlDecryptor
             {
                 Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "wrong_xml_element"));
                 throw new CryptographicException(
-                    $"Expected an element named '{PostQuantumXmlEncryptor.XmlElementName}' in namespace '{PostQuantumXmlEncryptor.XmlNamespace}'.");
+                    $"Expected an element named '{PostQuantumXmlEncryptor.XmlElementName}' in namespace '{PostQuantumXmlEncryptor.XmlNamespace}', " +
+                    $"but found '{encryptedElement.Name.LocalName}' in '{encryptedElement.Name.NamespaceName}'. " +
+                    "This usually means the persisted Data Protection key was wrapped by a different IXmlEncryptor and " +
+                    "you mixed protectors. See docs/migration.md for the supported migration path.");
             }
 
             string token = encryptedElement.Value.Trim();
@@ -96,11 +104,16 @@ public sealed class PostQuantumXmlDecryptor : IXmlDecryptor
             // The envelope is self-describing; the XML attributes are diagnostic. Trust the encoded
             // envelope as the source of truth and re-check the cross-references so a malformed-but-
             // valid-looking element cannot fool us.
-            if (envelope.KemAlgorithm != MlKem.AlgorithmName)
+            try
+            {
+                _ = MlKem.ParseAlgorithmLabel(envelope.KemAlgorithm);
+            }
+            catch (CryptographicException)
             {
                 Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "unsupported_algorithm"));
                 throw new CryptographicException(
-                    $"Envelope was produced for KEM algorithm '{envelope.KemAlgorithm}'; this decryptor only supports '{MlKem.AlgorithmName}'.");
+                    $"Envelope was produced for KEM algorithm '{envelope.KemAlgorithm}', which this decryptor does not recognise. " +
+                    "Supported algorithms today are ML-KEM-512, ML-KEM-768, and ML-KEM-1024.");
             }
 
             try
@@ -108,16 +121,24 @@ public sealed class PostQuantumXmlDecryptor : IXmlDecryptor
                 // ValueTask must not be awaited twice; AsTask() materialises it once so GetResult is safe (CA2012).
                 XElement result = DecryptAsync(envelope).AsTask().GetAwaiter().GetResult();
                 Telemetry.Decryptions.Add(1, new KeyValuePair<string, object?>("mode", mode));
+                LogDecryptedElement(_logger, envelope.Mode, envelope.PublicKeyId, null);
                 return result;
             }
-            catch (KeyNotFoundException)
+            catch (KeyNotFoundException ex)
             {
                 Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "unknown_keypair"));
-                throw;
+                LogUnknownKeypair(_logger, envelope.PublicKeyId, ex);
+                throw new CryptographicException(
+                    $"Cannot decrypt: this envelope was wrapped under PQ keypair '{envelope.PublicKeyId}', which is not loaded. " +
+                    "Either the keystore was rebuilt from scratch (losing the keypair), or the host is pointed at the wrong " +
+                    "PostQuantumDataProtectionOptions.KeyStorePath. Restore the keystore from backup, or point the host at the " +
+                    "correct path. See docs/deployment.md §5 (Disaster recovery matrix).",
+                    ex);
             }
-            catch (CryptographicException)
+            catch (CryptographicException ex)
             {
                 Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "auth_failed"));
+                LogAuthFailed(_logger, envelope.PublicKeyId, ex);
                 throw;
             }
         }
@@ -128,6 +149,24 @@ public sealed class PostQuantumXmlDecryptor : IXmlDecryptor
                 new KeyValuePair<string, object?>("mode", mode));
         }
     }
+
+    private static readonly Action<ILogger, HybridKemMode, string, Exception?> LogDecryptedElement =
+        LoggerMessage.Define<HybridKemMode, string>(
+            LogLevel.Debug,
+            new EventId(2, "PqDataProtectionDecrypted"),
+            "Decrypted Data Protection element (mode={Mode}, publicKeyId={PublicKeyId}).");
+
+    private static readonly Action<ILogger, string, Exception?> LogUnknownKeypair =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(3, "PqDataProtectionUnknownKeypair"),
+            "Failed to decrypt: envelope was wrapped under PQ keypair '{PublicKeyId}', which is not loaded. Check the keystore path and restore from backup if necessary.");
+
+    private static readonly Action<ILogger, string, Exception?> LogAuthFailed =
+        LoggerMessage.Define<string>(
+            LogLevel.Error,
+            new EventId(4, "PqDataProtectionAuthFailed"),
+            "Failed to decrypt: AES-GCM authentication failed for envelope wrapped under PQ keypair '{PublicKeyId}'. The envelope was tampered with, or the host KEK is wrong.");
 
     private async ValueTask<XElement> DecryptAsync(HybridKemEnvelope envelope)
     {
@@ -140,17 +179,19 @@ public sealed class PostQuantumXmlDecryptor : IXmlDecryptor
 
         try
         {
-            if (envelope.Mode == HybridKemMode.Hybrid)
+            if (envelope.Mode is HybridKemMode.Hybrid or HybridKemMode.XWingHybrid)
             {
                 if (string.IsNullOrEmpty(envelope.ClassicalWrappedKeyToken))
                 {
-                    throw new CryptographicException("Hybrid envelope is missing the classical wrapped-key token.");
+                    throw new CryptographicException($"{envelope.Mode} envelope is missing the classical wrapped-key token.");
                 }
 
                 WrappedContentKey wrappedClassical = WrappedContentKey.Decode(envelope.ClassicalWrappedKeyToken);
                 using ContentKey classicalDek = await _contentKeys.UnwrapAsync(wrappedClassical).ConfigureAwait(false);
                 classicalSecret = classicalDek.Key.ToArray();
-                derivedKey = HybridCombiner.DeriveHybrid(mlKemSharedSecret, classicalSecret, envelope.Nonce);
+                derivedKey = envelope.Mode == HybridKemMode.XWingHybrid
+                    ? HybridCombiner.DeriveXWingHybrid(mlKemSharedSecret, classicalSecret, envelope.KemCiphertext, envelope.Nonce)
+                    : HybridCombiner.DeriveHybrid(mlKemSharedSecret, classicalSecret, envelope.Nonce);
             }
             else
             {

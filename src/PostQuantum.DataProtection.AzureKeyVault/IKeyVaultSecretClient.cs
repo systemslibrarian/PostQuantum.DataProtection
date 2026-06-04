@@ -15,4 +15,7 @@ public interface IKeyVaultSecretClient
 
     /// <summary>Sets the value of a secret, creating it if necessary. Returns the new version identifier.</summary>
     ValueTask<string> SetSecretValueAsync(string name, string value, CancellationToken cancellationToken);
+
+    /// <summary>Deletes a secret. Returns <see langword="true"/> if a deletion was performed, <see langword="false"/> if the secret did not exist.</summary>
+    ValueTask<bool> DeleteSecretAsync(string name, CancellationToken cancellationToken);
 }

@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose a new capability or an API improvement.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening: skim [`future.md`](https://github.com/systemslibrarian/PostQuantum.DataProtection/blob/main/future.md)
+        to see if the feature is already on the roadmap.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation that makes you wish the feature existed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like the library to do?
+      description: |
+        Concrete is better than abstract. A C# code snippet showing the call site you want to write
+        is the most useful thing you can put here.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Did you try a workaround? What did you not like about it?
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and constraints
+      description: |
+        Anything we should know about API stability, performance, or security implications? The
+        library has strict promises about wire-format compatibility — let us know if your proposal
+        touches that.
