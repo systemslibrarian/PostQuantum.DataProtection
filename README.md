@@ -118,7 +118,23 @@ builder.Services
         options.Mode = HybridKemMode.Hybrid;  // default; production-safe
     });
 
+// 3. Optional but recommended: a health check that runs a real PQ envelope roundtrip on every
+//    probe so anything that breaks the chain (BC version drift, missing keystore, wrong host
+//    KEK) surfaces as Unhealthy instead of as a 500 at request time.
+builder.Services.AddHealthChecks().AddPostQuantumDataProtection();
+
 WebApplication app = builder.Build();
+app.MapHealthChecks("/health");
+```
+
+### Listing keypairs from an admin endpoint
+
+```csharp
+app.MapGet("/admin/pq-keys", async (PostQuantumKeyManager pq) =>
+{
+    IReadOnlyList<PostQuantumKeyDescriptor> keys = await pq.ListKeysAsync();
+    return Results.Ok(keys);  // non-secret: id, algorithm, createdAt, isActive
+});
 ```
 
 That is the whole integration. On first run, the library generates an ML-KEM-768 keypair, wraps

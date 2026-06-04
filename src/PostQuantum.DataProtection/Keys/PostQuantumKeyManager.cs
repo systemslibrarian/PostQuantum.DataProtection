@@ -134,6 +134,30 @@ public sealed class PostQuantumKeyManager : IDisposable
         return await RotateCoreAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Lists every keypair this manager has loaded, in ascending creation-time order. Carries only
+    /// the non-secret routing fields and creation timestamp — safe to surface from health endpoints,
+    /// metrics, or admin tooling. Triggers a load on first call.
+    /// </summary>
+    public async ValueTask<IReadOnlyList<PostQuantumKeyDescriptor>> ListKeysAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureLoadedAsync(cancellationToken).ConfigureAwait(false);
+        lock (_stateLock)
+        {
+            string? activeId = _activeKeyId;
+            return _byId.Values
+                .OrderBy(p => p.CreatedAtUnixMs)
+                .Select(p => new PostQuantumKeyDescriptor
+                {
+                    KeyId = p.KeyId,
+                    Algorithm = p.Algorithm,
+                    CreatedAt = DateTimeOffset.FromUnixTimeMilliseconds(p.CreatedAtUnixMs),
+                    IsActive = string.Equals(p.KeyId, activeId, StringComparison.Ordinal),
+                })
+                .ToArray();
+        }
+    }
+
     private async ValueTask<string> RotateCoreAsync(CancellationToken cancellationToken)
     {
         (byte[] publicKey, byte[] privateKey) = MlKem.GenerateKeyPair();

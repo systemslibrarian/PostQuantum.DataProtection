@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using PostQuantum.DataProtection;
 using PostQuantum.DataProtection.Hosting;
@@ -76,4 +77,26 @@ public static class PostQuantumDataProtectionBuilderExtensions
     /// </summary>
     public static IDataProtectionBuilder ProtectKeysWithPostQuantum(this IDataProtectionBuilder builder, string keyStorePath)
         => builder.ProtectKeysWithPostQuantum(o => o.KeyStorePath = keyStorePath);
+}
+
+/// <summary>
+/// <see cref="IHealthChecksBuilder"/> extensions for the PQ data-protection chain.
+/// </summary>
+public static class PostQuantumDataProtectionHealthChecksBuilderExtensions
+{
+    /// <summary>
+    /// Registers a health check that exercises a real PQ envelope roundtrip on every probe — the
+    /// PQ key manager, the host <see cref="IContentKeyProvider"/>, ML-KEM encapsulation, the
+    /// hybrid combiner, AES-256-GCM, and decapsulation all run against tiny test data. A
+    /// regression in any of those surfaces as Unhealthy.
+    /// </summary>
+    public static IHealthChecksBuilder AddPostQuantumDataProtection(
+        this IHealthChecksBuilder builder,
+        string name = "post-quantum-data-protection",
+        HealthStatus? failureStatus = null,
+        IEnumerable<string>? tags = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.AddCheck<PostQuantumDataProtectionHealthCheck>(name, failureStatus, tags ?? []);
+    }
 }
