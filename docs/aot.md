@@ -1,65 +1,96 @@
 # AOT and trimming compatibility
 
-`PostQuantum.DataProtection` is **not** AOT-compatible today, and is therefore not
-trim-compatible either. This document is the honest audit: what we tried, what we found, and
-what would have to change.
+`PostQuantum.DataProtection` is **AOT-compatible on `net10.0`** and not AOT-compatible on
+`net8.0` / `net9.0`. This document is the per-target audit.
 
-Status as of **`0.1.0-preview.3`**.
+Status as of **`0.1.0-preview.5`**.
 
 ## Result
 
-| Property                        | Status              |
-| ------------------------------- | ------------------- |
-| `IsAotCompatible`               | ❌ NOT set          |
-| `IsTrimmable`                   | ❌ explicitly false |
-| Library code emits `IL2026/IL3050` warnings | ✅ No (clean) |
-| Transitive deps are AOT-clean   | ❌ BouncyCastle uses reflection |
+| Target framework | `IsAotCompatible` | `IsTrimmable` | Why |
+|---|---|---|---|
+| **`net10.0`** | ✅ `true` | ✅ `true` | ML-KEM routes through `System.Security.Cryptography.MLKem` (BCL). AOT-clean. |
+| `net9.0` | ❌ false | ❌ false | ML-KEM routes through BouncyCastle, which uses runtime reflection. |
+| `net8.0` | ❌ false | ❌ false | Same as net9.0. |
 
-## What we tried
+The library emits zero `IL2026` / `IL3050` warnings on the `net10.0` build under the
+`latest-recommended` analyser ruleset.
 
-Enabling `<IsAotCompatible>true</IsAotCompatible>` on the library `.csproj`. The library's own
-source compiles AOT-clean — no reflection, no `MakeGenericType`, no `Assembly.Load`, no JSON
-serialization with reflection contracts. The only AOT-incompatible code path lives in
-`BouncyCastle.Cryptography 2.6.x`, which the ML-KEM implementation transitively depends on. BC
-uses runtime reflection for several internal service-provider lookups; the trimming analyser
-correctly reports those code paths as unverifiable.
+## How
 
-We are not going to publish a `<IsAotCompatible>true</IsAotCompatible>` we cannot stand behind,
-so the flag stays off until either:
+The `MlKem` static class is split across three source files selected at compile time:
 
-1. A future BouncyCastle release annotates the relevant code paths with
-   `DynamicallyAccessedMembers` / `RequiresUnreferencedCode` so the analyser can verify them, or
-2. We route the ML-KEM operations through the BC FIPS module (which has different
-   distribution constraints — see [`KNOWN-GAPS.md` §3](../KNOWN-GAPS.md#3-not-fips-140-validated)), or
-3. .NET ships ML-KEM in `System.Security.Cryptography` directly (announced for `net10.0` and
-   evaluated for a future preview — see [`future.md`](../future.md)).
+```text
+src/PostQuantum.DataProtection/Hybrid/
+  MlKem.cs                    # shared metadata + public surface (both targets)
+  MlKem.Bcl.cs                # #if NET10_0_OR_GREATER         — uses System.Security.Cryptography.MLKem
+  MlKem.BouncyCastle.cs       # #if !NET10_0_OR_GREATER        — uses BouncyCastle
+```
 
-## What this means for consumers
+The `.csproj` makes the BouncyCastle package reference conditional:
 
-- **AOT/NativeAOT publishes are not supported.** A `dotnet publish -p:PublishAot=true` of a host
-  that depends on this library will produce IL2026 warnings from BouncyCastle and may exhibit
-  runtime failures on the ML-KEM path. Do not deploy.
-- **`PublishTrimmed=true` is not supported** for the same reason.
-- **Standard non-AOT publishes work normally** — this is the entire .NET deployment shape that
-  is not AOT, including every cloud container target we have tested against.
+```xml
+<PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2"
+                  Condition="'$(TargetFramework)' != 'net10.0'" />
+```
 
-## When does this change?
+…and turns AOT analysis on for `net10.0` only:
 
-The roadmap in [`future.md`](../future.md) tracks the path to AOT compatibility. Realistically:
+```xml
+<IsAotCompatible Condition="'$(TargetFramework)' == 'net10.0'">true</IsAotCompatible>
+<IsTrimmable Condition="'$(TargetFramework)' == 'net10.0'">true</IsTrimmable>
+```
 
-- **Short-term:** unchanged. BouncyCastle 2.6.x is the only mature C# ML-KEM-768 implementation
-  and the AOT story is not on its roadmap.
-- **Medium-term:** the BCL ML-KEM API on `net10.0+` is the strongest candidate. A future preview
-  may provide a `PostQuantum.DataProtection.Bcl` shim that routes through it on `net10.0` and
-  falls back to BouncyCastle on `net8.0;net9.0`. That shim could carry `IsAotCompatible=true` on
-  the `net10.0` target.
-- **Long-term:** once the BCL API is the only path, `IsAotCompatible=true` becomes universal.
+A consumer that publishes their host AOT (`dotnet publish -p:PublishAot=true`) targeting
+`net10.0` gets a fully AOT-compiled chain.
+
+## The one API surface that requires annotation
+
+`ProtectKeysWithPostQuantum(IConfigurationSection)` uses `IConfigurationSection.Bind(object)`
+internally, which is reflection-based and not AOT-safe. The method is annotated with
+`[RequiresUnreferencedCode]` and `[RequiresDynamicCode]` so the AOT analyser propagates the
+warning to the call site — letting consumers choose between:
+
+1. **Use the delegate overload instead** (`ProtectKeysWithPostQuantum(o => ...)`) — fully
+   AOT-safe.
+2. **Suppress the warning at the call site** — accept that the host pulls in a reflective
+   binder.
+3. **Annotate the host's `Main` with the same attributes** — propagate the requirement up.
+
+## What about envelope compatibility across targets?
+
+The BCL `MLKem` and the BouncyCastle `MLKemPrivateKeyParameters` both implement FIPS 203 and
+produce byte-for-byte identical outputs for the same inputs. An envelope written by a
+`net8.0` host (BC) decodes correctly on a `net10.0` host (BCL) and vice versa. The
+`AcvpKatTests` pin this against the NIST vector on both targets.
 
 ## Comparison with the rest of `PostQuantum.*`
 
-`PostQuantum.KeyManagement` sets `IsAotCompatible=true`. It can do so because its only
-cryptographic dependency is `Konscious.Security.Cryptography.Argon2`, which is AOT-clean. Our
-ML-KEM path is the difference.
+| Library | AOT on net10 | Notes |
+|---|---|---|
+| `PostQuantum.KeyManagement` | ✅ | Argon2id via Konscious — AOT-clean across all targets. |
+| `PostQuantum.DataProtection` | ✅ (net10 only) | This library. BCL-only on net10; BC on net8/9. |
+| `PostQuantum.DataProtection.AzureKeyVault` | depends on Azure SDK | Azure SDK is not formally AOT-supported yet. |
+| `PostQuantum.DataProtection.Aws` | depends on AWS SDK | AWS SDK is not formally AOT-supported yet. |
+| `PostQuantum.DataProtection.Redis` | depends on StackExchange.Redis | StackExchange.Redis is not formally AOT-supported yet. |
+| `PostQuantum.DataProtection.OpenTelemetry` | ✅ | Thin shim; no AOT-hostile code. |
+| `PostQuantum.DataProtection.Testing` | ✅ | In-memory fakes; no reflection. |
+| `PostQuantum.DataProtection.Cli` | ✅ | The `pq-dp` tool is a console app; could be published AOT. |
+
+The cloud-store packages will become AOT-compatible when their SDK dependencies declare it.
+For an AOT host that uses one of those stores today, the warnings propagate up but the binaries
+still ship; the cloud SDKs work at runtime.
+
+## Verifying
+
+To prove the `net10.0` target is AOT-clean, restore the repo and run:
+
+```bash
+dotnet build src/PostQuantum.DataProtection -c Release -f net10.0 /p:WarningLevel=9999
+```
+
+Expect **0 warnings, 0 errors**. Any `IL2026` / `IL3050` would surface as a build error under
+the repo's `TreatWarningsAsErrors=true` policy.
 
 ---
 

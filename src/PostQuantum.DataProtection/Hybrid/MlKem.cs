@@ -1,33 +1,32 @@
 using System.Security.Cryptography;
-using Org.BouncyCastle.Crypto.Generators;
-using Org.BouncyCastle.Crypto.Kems;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Security;
 
 namespace PostQuantum.DataProtection.Hybrid;
 
 /// <summary>
-/// Thin wrapper over BouncyCastle's FIPS 203 ML-KEM implementation, supporting all three NIST
-/// parameter sets (ML-KEM-512, ML-KEM-768, ML-KEM-1024). The library defaults to
-/// <see cref="MlKemParameterSet.Kem768"/> but every operation accepts any set, and the keypair id
-/// prefix reflects the set used so envelopes route correctly across mixed-set deployments.
+/// FIPS 203 ML-KEM operations. Internally this class is a thin facade — on <c>net10.0</c> the
+/// implementation lives behind <c>System.Security.Cryptography.MLKem</c> (BCL); on
+/// <c>net8.0</c> and <c>net9.0</c> it lives behind BouncyCastle. Both produce byte-for-byte the
+/// same FIPS 203 outputs, so envelopes written under one path decode under the other.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Size constants are hard-coded per FIPS 203 §8 so a wire-format reviewer can read them from the
-/// source. The BouncyCastle-reported sizes are asserted against the hard-coded values at
-/// encapsulate time — a BC version that disagreed would fail loudly rather than produce a
-/// malformed envelope.
+/// The shared file (<c>MlKem.cs</c>) holds algorithm metadata and the public surface. Per-platform
+/// implementations live in <c>MlKem.Bcl.cs</c> and <c>MlKem.BouncyCastle.cs</c> and are selected at
+/// compile time by the <c>NET10_0_OR_GREATER</c> symbol. The BCL path is AOT-compatible; the
+/// BouncyCastle path is not. See <c>docs/aot.md</c> for the rationale.
 /// </para>
 /// <para>
-/// Stateless and thread-safe; the BouncyCastle classes are short-lived per call. Randomness comes
-/// from <see cref="SecureRandom"/>, which delegates to <see cref="RandomNumberGenerator"/> on .NET.
+/// Stateless and thread-safe; per-call objects are short-lived. Randomness comes from
+/// <see cref="RandomNumberGenerator"/> on both paths.
 /// </para>
 /// </remarks>
-internal static class MlKem
+internal static partial class MlKem
 {
     /// <summary>The shared-secret length is 32 bytes for every ML-KEM parameter set.</summary>
     public const int SharedSecretLength = 32;
+
+    /// <summary>The FIPS 203 keygen seed length (d || z) is 64 bytes for every parameter set.</summary>
+    public const int SeedLength = 64;
 
     // === ML-KEM-768 (default) — historical names kept for the existing tests and benchmarks ====
     public const string AlgorithmName = "ML-KEM-768";
@@ -80,14 +79,6 @@ internal static class MlKem
         _ => throw new ArgumentOutOfRangeException(nameof(set)),
     };
 
-    private static MLKemParameters BcParameters(MlKemParameterSet set) => set switch
-    {
-        MlKemParameterSet.Kem512 => MLKemParameters.ml_kem_512,
-        MlKemParameterSet.Kem768 => MLKemParameters.ml_kem_768,
-        MlKemParameterSet.Kem1024 => MLKemParameters.ml_kem_1024,
-        _ => throw new ArgumentOutOfRangeException(nameof(set)),
-    };
-
     /// <summary>Parses an algorithm label back to a parameter set; throws on unknown values.</summary>
     public static MlKemParameterSet ParseAlgorithmLabel(string label) => label switch
     {
@@ -97,101 +88,43 @@ internal static class MlKem
         _ => throw new CryptographicException($"Unknown ML-KEM algorithm label '{label}'."),
     };
 
-    // === Generation, encapsulation, decapsulation ============================================
+    // === Default-parameter-set overloads ====================================
 
     /// <summary>Default-parameter-set keypair generation. Equivalent to <c>GenerateKeyPair(Kem768)</c>.</summary>
     public static (byte[] PublicKey, byte[] PrivateKey) GenerateKeyPair() => GenerateKeyPair(MlKemParameterSet.Kem768);
-
-    /// <summary>Generates a fresh ML-KEM keypair for the chosen parameter set using the platform CSPRNG.</summary>
-    public static (byte[] PublicKey, byte[] PrivateKey) GenerateKeyPair(MlKemParameterSet set)
-    {
-        MLKemParameters parameters = BcParameters(set);
-        var random = new SecureRandom();
-        var generator = new MLKemKeyPairGenerator();
-        generator.Init(new MLKemKeyGenerationParameters(random, parameters));
-        Org.BouncyCastle.Crypto.AsymmetricCipherKeyPair pair = generator.GenerateKeyPair();
-
-        byte[] pk = ((MLKemPublicKeyParameters)pair.Public).GetEncoded();
-        byte[] sk = ((MLKemPrivateKeyParameters)pair.Private).GetEncoded();
-
-        int expectedPk = PublicKeyLengthFor(set);
-        int expectedSk = PrivateKeyLengthFor(set);
-        if (pk.Length != expectedPk || sk.Length != expectedSk)
-        {
-            CryptographicOperations.ZeroMemory(sk);
-            throw new CryptographicException(
-                $"BouncyCastle produced an {AlgorithmLabel(set)} keypair with unexpected sizes (pk={pk.Length}, sk={sk.Length}). " +
-                "This is a library / BouncyCastle version mismatch, not a runtime input problem.");
-        }
-
-        return (pk, sk);
-    }
 
     /// <summary>Default-parameter-set encapsulation. Equivalent to <c>Encapsulate(publicKey, Kem768)</c>.</summary>
     public static (byte[] Ciphertext, byte[] SharedSecret) Encapsulate(ReadOnlySpan<byte> publicKey)
         => Encapsulate(publicKey, MlKemParameterSet.Kem768);
 
-    /// <summary>Encapsulates a fresh shared secret against <paramref name="publicKey"/>.</summary>
-    public static (byte[] Ciphertext, byte[] SharedSecret) Encapsulate(ReadOnlySpan<byte> publicKey, MlKemParameterSet set)
-    {
-        int expectedPk = PublicKeyLengthFor(set);
-        if (publicKey.Length != expectedPk)
-        {
-            throw new ArgumentException(
-                $"{AlgorithmLabel(set)} public key must be exactly {expectedPk} bytes; got {publicKey.Length}.",
-                nameof(publicKey));
-        }
-
-        MLKemParameters parameters = BcParameters(set);
-        int expectedCt = EncapsulationLengthFor(set);
-
-        MLKemPublicKeyParameters pk = MLKemPublicKeyParameters.FromEncoding(parameters, publicKey.ToArray());
-        var encapsulator = new MLKemEncapsulator(parameters);
-        encapsulator.Init(new ParametersWithRandom(pk, new SecureRandom()));
-
-        if (encapsulator.EncapsulationLength != expectedCt || encapsulator.SecretLength != SharedSecretLength)
-        {
-            throw new CryptographicException(
-                $"BouncyCastle reports unexpected {AlgorithmLabel(set)} size constants. Aborting before producing a malformed envelope.");
-        }
-
-        byte[] ciphertext = new byte[expectedCt];
-        byte[] sharedSecret = new byte[SharedSecretLength];
-        encapsulator.Encapsulate(ciphertext, 0, ciphertext.Length, sharedSecret, 0, sharedSecret.Length);
-        return (ciphertext, sharedSecret);
-    }
-
     /// <summary>Default-parameter-set decapsulation. Equivalent to <c>Decapsulate(privateKey, ciphertext, Kem768)</c>.</summary>
     public static byte[] Decapsulate(ReadOnlySpan<byte> privateKey, ReadOnlySpan<byte> ciphertext)
         => Decapsulate(privateKey, ciphertext, MlKemParameterSet.Kem768);
 
+    // === Platform-specific surface (implemented in MlKem.Bcl.cs / MlKem.BouncyCastle.cs) ====
+
+    /// <summary>Generates a fresh ML-KEM keypair for the chosen parameter set using the platform CSPRNG.</summary>
+    public static partial (byte[] PublicKey, byte[] PrivateKey) GenerateKeyPair(MlKemParameterSet set);
+
+    /// <summary>
+    /// Generates an ML-KEM keypair deterministically from a 64-byte FIPS 203 seed (<c>d || z</c>).
+    /// Used by KAT tests and any caller that needs reproducible keys.
+    /// </summary>
+    public static partial (byte[] PublicKey, byte[] PrivateKey) GenerateKeyPairFromSeed(MlKemParameterSet set, ReadOnlySpan<byte> seed);
+
+    /// <summary>Encapsulates a fresh shared secret against <paramref name="publicKey"/>.</summary>
+    public static partial (byte[] Ciphertext, byte[] SharedSecret) Encapsulate(ReadOnlySpan<byte> publicKey, MlKemParameterSet set);
+
     /// <summary>Decapsulates <paramref name="ciphertext"/> with <paramref name="privateKey"/> for the chosen parameter set.</summary>
-    public static byte[] Decapsulate(ReadOnlySpan<byte> privateKey, ReadOnlySpan<byte> ciphertext, MlKemParameterSet set)
+    public static partial byte[] Decapsulate(ReadOnlySpan<byte> privateKey, ReadOnlySpan<byte> ciphertext, MlKemParameterSet set);
+
+    private static void ValidateLengths(MlKemParameterSet set, ReadOnlySpan<byte> pk, int expectedPk, string field)
     {
-        int expectedSk = PrivateKeyLengthFor(set);
-        int expectedCt = EncapsulationLengthFor(set);
-
-        if (privateKey.Length != expectedSk)
+        if (pk.Length != expectedPk)
         {
             throw new ArgumentException(
-                $"{AlgorithmLabel(set)} private key must be exactly {expectedSk} bytes; got {privateKey.Length}.",
-                nameof(privateKey));
+                $"{AlgorithmLabel(set)} {field} must be exactly {expectedPk} bytes; got {pk.Length}.",
+                field);
         }
-
-        if (ciphertext.Length != expectedCt)
-        {
-            throw new ArgumentException(
-                $"{AlgorithmLabel(set)} ciphertext must be exactly {expectedCt} bytes; got {ciphertext.Length}.",
-                nameof(ciphertext));
-        }
-
-        MLKemParameters parameters = BcParameters(set);
-        MLKemPrivateKeyParameters sk = MLKemPrivateKeyParameters.FromEncoding(parameters, privateKey.ToArray());
-        var decapsulator = new MLKemDecapsulator(parameters);
-        decapsulator.Init(sk);
-
-        byte[] sharedSecret = new byte[SharedSecretLength];
-        decapsulator.Decapsulate(ciphertext.ToArray(), 0, ciphertext.Length, sharedSecret, 0, sharedSecret.Length);
-        return sharedSecret;
     }
 }

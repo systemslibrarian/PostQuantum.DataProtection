@@ -1,4 +1,3 @@
-using Org.BouncyCastle.Crypto.Parameters;
 using PostQuantum.DataProtection.Hybrid;
 using Xunit;
 
@@ -49,11 +48,11 @@ public sealed class AcvpKatTests
     public void Keygen_from_d_concat_z_matches_NIST_public_key()
     {
         // FIPS 203 ML-KEM.KeyGen uses d (32 bytes) for K-PKE.KeyGen and concatenates z (32 bytes)
-        // into the secret key. BouncyCastle's FromSeed takes a 64-byte concatenation: d || z.
+        // into the secret key. Our MlKem.GenerateKeyPairFromSeed takes a 64-byte concatenation:
+        // d || z. The output must match the published vector regardless of whether the underlying
+        // implementation is BouncyCastle (net8/9) or System.Security.Cryptography (net10).
         byte[] seed = [.. Hex(D_Hex), .. Hex(Z_Hex)];
-        MLKemPrivateKeyParameters sk = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, seed);
-
-        byte[] derivedPk = sk.GetPublicKey().GetEncoded();
+        (byte[] derivedPk, byte[] _) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, seed);
         byte[] expectedPk = Hex(Pk_Hex);
 
         Assert.Equal(MlKem.PublicKeyLength, derivedPk.Length);
@@ -65,9 +64,7 @@ public sealed class AcvpKatTests
     public void Keygen_from_d_concat_z_matches_NIST_secret_key()
     {
         byte[] seed = [.. Hex(D_Hex), .. Hex(Z_Hex)];
-        MLKemPrivateKeyParameters sk = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, seed);
-
-        byte[] derivedSk = sk.GetEncoded();
+        (byte[] _, byte[] derivedSk) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, seed);
         byte[] expectedSk = Hex(Sk_Hex);
 
         Assert.Equal(MlKem.PrivateKeyLength, derivedSk.Length);

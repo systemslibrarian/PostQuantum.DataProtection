@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using Org.BouncyCastle.Crypto.Parameters;
 using PostQuantum.DataProtection.Hybrid;
 using Xunit;
 using Xunit.Abstractions;
@@ -37,24 +36,18 @@ public sealed class MlKemKatTests
     [Fact]
     public void Same_seed_yields_the_same_private_key_bytes()
     {
-        MLKemPrivateKeyParameters a = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, PinnedSeed);
-        MLKemPrivateKeyParameters b = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, PinnedSeed);
+        (byte[] _, byte[] a) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
+        (byte[] _, byte[] b) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
 
-        byte[] aEncoded = a.GetEncoded();
-        byte[] bEncoded = b.GetEncoded();
-
-        Assert.Equal(MlKem.PrivateKeyLength, aEncoded.Length);
-        Assert.Equal(aEncoded, bEncoded);
+        Assert.Equal(MlKem.PrivateKeyLength, a.Length);
+        Assert.Equal(a, b);
     }
 
     [Fact]
     public void Same_seed_yields_the_same_public_key_bytes()
     {
-        MLKemPrivateKeyParameters a = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, PinnedSeed);
-        MLKemPrivateKeyParameters b = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, PinnedSeed);
-
-        byte[] aPk = a.GetPublicKey().GetEncoded();
-        byte[] bPk = b.GetPublicKey().GetEncoded();
+        (byte[] aPk, byte[] _) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
+        (byte[] bPk, byte[] _) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
 
         Assert.Equal(MlKem.PublicKeyLength, aPk.Length);
         Assert.Equal(aPk, bPk);
@@ -63,14 +56,10 @@ public sealed class MlKemKatTests
     [Fact]
     public void Seeded_keypair_supports_encapsulate_decapsulate_roundtrip()
     {
-        // Functional KAT: regardless of the (random) encapsulation, the shared secret recovered by
-        // decapsulating with the seeded SK must match the one the encapsulator produced. This is
-        // the property our library actually depends on.
-        MLKemPrivateKeyParameters sk = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, PinnedSeed);
-        byte[] pkBytes = sk.GetPublicKey().GetEncoded();
+        (byte[] pk, byte[] sk) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
 
-        (byte[] ciphertext, byte[] sentSecret) = MlKem.Encapsulate(pkBytes);
-        byte[] recovered = MlKem.Decapsulate(sk.GetEncoded(), ciphertext);
+        (byte[] ciphertext, byte[] sentSecret) = MlKem.Encapsulate(pk);
+        byte[] recovered = MlKem.Decapsulate(sk, ciphertext);
 
         Assert.Equal(MlKem.EncapsulationLength, ciphertext.Length);
         Assert.Equal(MlKem.SharedSecretLength, sentSecret.Length);
@@ -80,13 +69,12 @@ public sealed class MlKemKatTests
     [Fact]
     public void Seeded_keypair_public_key_hash_is_pinned()
     {
-        // Pins the public-key byte encoding via its SHA-256. If a future BC version changes the
-        // FIPS 203 encoding (NIST has the right to refine before final standardisation), this
-        // test fails on the next CI run and we re-record the hash in a deliberate commit rather
-        // than silently shipping wire-format-incompatible envelopes.
-        MLKemPrivateKeyParameters sk = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, PinnedSeed);
-        byte[] pkBytes = sk.GetPublicKey().GetEncoded();
-        string actual = Convert.ToHexString(SHA256.HashData(pkBytes)).ToLowerInvariant();
+        // Pins the public-key byte encoding via its SHA-256. Same value across BC (net8/9) and BCL
+        // (net10) because both implement FIPS 203 byte-for-byte. A future implementation change
+        // that produced different bytes for the same seed fails CI rather than silently shipping
+        // wire-format-incompatible envelopes.
+        (byte[] pk, byte[] _) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
+        string actual = Convert.ToHexString(SHA256.HashData(pk)).ToLowerInvariant();
 
         _output.WriteLine("PublicKeySha256 = " + actual);
         Assert.Equal(ExpectedHash.PublicKeySha256, actual);
@@ -95,9 +83,8 @@ public sealed class MlKemKatTests
     [Fact]
     public void Seeded_keypair_private_key_hash_is_pinned()
     {
-        MLKemPrivateKeyParameters sk = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, PinnedSeed);
-        byte[] skBytes = sk.GetEncoded();
-        string actual = Convert.ToHexString(SHA256.HashData(skBytes)).ToLowerInvariant();
+        (byte[] _, byte[] sk) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
+        string actual = Convert.ToHexString(SHA256.HashData(sk)).ToLowerInvariant();
 
         _output.WriteLine("PrivateKeySha256 = " + actual);
         Assert.Equal(ExpectedHash.PrivateKeySha256, actual);
@@ -109,10 +96,10 @@ public sealed class MlKemKatTests
         byte[] otherSeed = (byte[])PinnedSeed.Clone();
         otherSeed[0] ^= 0xFF;
 
-        MLKemPrivateKeyParameters a = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, PinnedSeed);
-        MLKemPrivateKeyParameters b = MLKemPrivateKeyParameters.FromSeed(MLKemParameters.ml_kem_768, otherSeed);
+        (byte[] aPk, byte[] _) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
+        (byte[] bPk, byte[] _) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, otherSeed);
 
-        Assert.NotEqual(a.GetPublicKey().GetEncoded(), b.GetPublicKey().GetEncoded());
+        Assert.NotEqual(aPk, bPk);
     }
 
     /// <summary>

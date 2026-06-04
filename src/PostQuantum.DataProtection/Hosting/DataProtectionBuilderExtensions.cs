@@ -103,6 +103,13 @@ public static class PostQuantumDataProtectionBuilderExtensions
     /// }
     /// </code>
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
+        "Binding a strongly-typed options object from IConfigurationSection uses reflection over " +
+        "PostQuantumDataProtectionOptions and is not trim-safe. Use the Action<PostQuantumDataProtectionOptions> " +
+        "overload instead, or call this method from a non-trimmed host.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(
+        "Binding a strongly-typed options object from IConfigurationSection requires dynamic code at runtime " +
+        "and is not AOT-safe. Use the Action<PostQuantumDataProtectionOptions> overload instead.")]
     public static IDataProtectionBuilder ProtectKeysWithPostQuantum(this IDataProtectionBuilder builder, IConfigurationSection section)
     {
         ArgumentNullException.ThrowIfNull(builder);

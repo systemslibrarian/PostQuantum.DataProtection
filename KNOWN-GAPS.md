@@ -14,9 +14,23 @@ Status as of **`0.1.0-preview.4`**.
 
 ---
 
+## §A Closed in `0.1.0-preview.5`
+
+- ✅ **§C3 BCL ML-KEM on `net10.0+`.** ML-KEM operations run through
+  `System.Security.Cryptography.MLKem` on the `net10.0` target; `net8.0` and `net9.0` continue
+  to use BouncyCastle. The `MlKem` static class is partial across three files
+  (`MlKem.cs`, `MlKem.Bcl.cs`, `MlKem.BouncyCastle.cs`) selected at compile time. Envelope
+  byte-format is unchanged — an envelope written by a `net8.0` host decodes correctly on a
+  `net10.0` host and vice versa.
+- ✅ **§C4 AOT compatibility on `net10.0`.** `IsAotCompatible=true` and `IsTrimmable=true` on
+  the `net10.0` target. The library emits zero `IL2026` / `IL3050` warnings on net10. The one
+  reflection-using public method (`ProtectKeysWithPostQuantum(IConfigurationSection)`) carries
+  `[RequiresUnreferencedCode]` + `[RequiresDynamicCode]` so the warning propagates to the
+  caller. See [`docs/aot.md`](docs/aot.md).
+
 ## §A Closed in `0.1.0-preview.4`
 
-In addition to the items below, this preview closed four §C roadmap items in one push:
+In addition to the items below, preview.4 closed four §C roadmap items in one push:
 
 - ✅ **§C1 Selectable ML-KEM parameter set.** `MlKemParameterSet { Kem512, Kem768, Kem1024 }` on
   `PostQuantumDataProtectionOptions.ParameterSet`. Existing keypairs continue to decrypt under
@@ -107,19 +121,6 @@ this library does not leave the host in the supported flow.
 
 Things we know would be useful and are working toward, in rough priority order. None of these are
 promises; all of them are intentions backed by some thought already.
-
-### C3. BCL ML-KEM on net10.0+
-
-.NET 10 ships ML-KEM in `System.Security.Cryptography` directly. A future preview will provide a
-`PostQuantum.DataProtection.Bcl` path that routes through the BCL on `net10.0` and falls back to
-BouncyCastle on `net8.0;net9.0`. That removes the BouncyCastle reflection dependency on the
-`net10.0` target and opens the door to AOT compatibility on it.
-
-### C4. AOT compatibility (on the BCL ML-KEM path)
-
-Gated behind C3. `PostQuantum.KeyManagement` already sets `IsAotCompatible=true`; the only thing
-preventing parity here is the BouncyCastle reflection footprint. Once we have a BCL-only path,
-AOT becomes turn-on-able for that target.
 
 ### C6. FIPS 140-3 path via the BC FIPS module
 
