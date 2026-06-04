@@ -1,0 +1,72 @@
+# EditorConfig is awesome: https://EditorConfig.org
+# Repo-wide formatting rules. The repo runs `dotnet format --verify-no-changes` in CI; PRs that
+# violate this file will fail the format check.
+
+root = true
+
+# Every file: UTF-8, LF in Git but tools can use either locally, final newline, no trailing whitespace.
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# C#
+[*.cs]
+indent_size = 4
+max_line_length = 120
+
+# File-scoped namespaces; expression-bodied members where appropriate.
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_expression_bodied_methods = when_on_single_line:silent
+csharp_style_expression_bodied_constructors = when_on_single_line:silent
+csharp_style_expression_bodied_operators = when_on_single_line:silent
+csharp_style_expression_bodied_properties = when_on_single_line:silent
+csharp_style_expression_bodied_indexers = when_on_single_line:silent
+csharp_style_expression_bodied_accessors = when_on_single_line:silent
+
+# var: use for built-ins and where the type is obvious from the right-hand side.
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+
+# using directives at top of file, no blank line between System and other usings.
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# Modifier order.
+csharp_preferred_modifier_order = public,private,protected,internal,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,volatile,async:suggestion
+
+# Patterns
+csharp_style_pattern_matching_over_is_with_cast_check = true:warning
+csharp_style_pattern_matching_over_as_with_null_check = true:warning
+csharp_style_throw_expression = true:suggestion
+csharp_style_conditional_delegate_call = true:suggestion
+
+# Naming style enforcement is intentionally NOT configured here — the repo already enforces
+# style via TreatWarningsAsErrors + AnalysisLevel=latest-recommended, and adding name-shape
+# rules in .editorconfig would conflict with framework conventions (LoggerMessage delegates,
+# const sentinels, etc).
+
+# XML / JSON / YAML / MD use 2-space indent.
+[*.{xml,csproj,vbproj,proj,props,targets,json,yml,yaml,md,slnx}]
+indent_size = 2
+
+# Razor / Razor components
+[*.{razor,cshtml}]
+indent_size = 4
+
+# PowerShell
+[*.ps1]
+indent_size = 4
+end_of_line = crlf
+
+# Bash
+[*.sh]
+indent_size = 2
+end_of_line = lf
+
+# Disable analyzer rules that conflict with the repo's deliberate style.
+# CA1062: parameter null-check is handled by Nullable annotations.
+[*.cs]
+dotnet_diagnostic.CA1062.severity = none

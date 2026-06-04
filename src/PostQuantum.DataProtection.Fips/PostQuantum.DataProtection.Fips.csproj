@@ -2,24 +2,24 @@
 
   <PropertyGroup>
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
-    <RootNamespace>PostQuantum.DataProtection.Testing</RootNamespace>
-    <AssemblyName>PostQuantum.DataProtection.Testing</AssemblyName>
+    <RootNamespace>PostQuantum.DataProtection.Fips</RootNamespace>
+    <AssemblyName>PostQuantum.DataProtection.Fips</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NeutralLanguage>en-US</NeutralLanguage>
     <EnablePackageValidation>true</EnablePackageValidation>
   </PropertyGroup>
 
   <PropertyGroup>
-    <PackageId>PostQuantum.DataProtection.Testing</PackageId>
+    <PackageId>PostQuantum.DataProtection.Fips</PackageId>
     <Version>0.1.0-preview.6</Version>
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
     <FileVersion>0.1.0.6</FileVersion>
     <Authors>Paul Clark</Authors>
     <Company>Systems Librarian</Company>
-    <Product>PostQuantum.DataProtection.Testing</Product>
-    <Title>PostQuantum.DataProtection.Testing — test fakes for PostQuantum.DataProtection</Title>
-    <Description>Test fakes for PostQuantum.DataProtection. Provides an in-memory IPostQuantumKeyStore (FakePostQuantumKeyStore) so consumer projects can write unit tests against their own code without standing up a real ML-KEM keypair, a real classical KEK, or a real file on disk. One-line wiring: services.AddPostQuantumDataProtectionTesting().</Description>
-    <PackageTags>post-quantum;pqc;testing;xunit;test-fakes;aspnetcore;data-protection</PackageTags>
+    <Product>PostQuantum.DataProtection.Fips</Product>
+    <Title>PostQuantum.DataProtection.Fips — FIPS 140-3 deployment guidance for PostQuantum.DataProtection</Title>
+    <Description>Deployment guidance and a configuration marker for running PostQuantum.DataProtection under FIPS 140-3 compliance regimes. This package ships the FipsDeploymentMarker type that hosts can use to declare a FIPS-only operating mode, plus a runtime check that fails fast when the active cryptographic provider does not match the declared posture. The actual FIPS-validated ML-KEM implementation must be supplied by the consumer (e.g. BouncyCastle FIPS or a vendor-validated module). See the README for the full integration guide.</Description>
+    <PackageTags>post-quantum;pqc;ml-kem;fips;fips140;aspnetcore;data-protection;compliance</PackageTags>
     <PackageProjectUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</PackageProjectUrl>
     <RepositoryUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -27,7 +27,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <Copyright>Copyright (c) Paul Clark</Copyright>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReleaseNotes>0.1.0-preview.4: First public preview. Test fakes for PostQuantum.DataProtection. Ships FakePostQuantumKeyStore (in-memory IPostQuantumKeyStore) and a one-line DI helper (AddPostQuantumDataProtectionTesting) so consumer projects can write unit tests against their own code without standing up a real ML-KEM keypair, a real classical KEK, or a real file on disk.</PackageReleaseNotes>
+    <PackageReleaseNotes>0.1.0-preview.6: First public preview. Ships FipsDeploymentMarker so hosts can declare a FIPS 140-3 operating posture, plus runtime checks that fail fast when the active cryptographic provider does not match the declared posture. The actual FIPS-validated ML-KEM implementation must be supplied by the consumer (e.g. BouncyCastle FIPS, a vendor-validated module, or — on a future SDK — the .NET FIPS-validated provider).</PackageReleaseNotes>
   </PropertyGroup>
 
   <PropertyGroup>

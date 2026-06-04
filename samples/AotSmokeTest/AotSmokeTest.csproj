@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>true</IsPublishable>
+
+    <!-- The point of this sample: AOT-publish a real consumer and prove that
+         PostQuantum.DataProtection's net10 target is AOT-clean. -->
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- A few analyzer rules that are fine for a sample but noisy under TreatWarningsAsErrors. -->
+    <NoWarn>$(NoWarn);CA1303;CA1812;CA2007;CA1861;CA1848;CA1873;CA1031</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
+    <ProjectReference Include="../../src/PostQuantum.DataProtection.Testing/PostQuantum.DataProtection.Testing.csproj" />
+    <PackageReference Include="PostQuantum.KeyManagement" Version="0.4.0-preview.2" />
+  </ItemGroup>
+
+</Project>

@@ -8,6 +8,132 @@ binary wire format may change in breaking ways across `0.x` minor versions. See
 
 ## [Unreleased]
 
+## [0.1.0-preview.5] — 2026-06-04
+
+**BCL ML-KEM on `net10.0` + AOT compatibility.** Backward-compatible.
+
+### Added
+
+- **BCL ML-KEM path on `net10.0`** — operations route through
+  `System.Security.Cryptography.MLKem` instead of BouncyCastle on the `net10.0` target.
+  `MlKem` is partial across three files (`MlKem.cs`, `MlKem.Bcl.cs`, `MlKem.BouncyCastle.cs`)
+  selected at compile time by `NET10_0_OR_GREATER`. Envelope byte format unchanged —
+  envelopes written by a `net8.0` host decode correctly on a `net10.0` host and vice versa.
+- **AOT compatibility on `net10.0`** — `IsAotCompatible=true` and `IsTrimmable=true` on the
+  net10 target; zero `IL2026`/`IL3050` warnings. The one reflection-using API
+  (`ProtectKeysWithPostQuantum(IConfigurationSection)`) carries
+  `[RequiresUnreferencedCode]` + `[RequiresDynamicCode]` so the warning propagates cleanly.
+- **`MlKem.GenerateKeyPairFromSeed`** — deterministic keypair generation from a 64-byte FIPS 203
+  seed (`d ‖ z`). KAT tests now use this for path-agnostic verification.
+- **`docs/aot.md`** rewritten as the per-target AOT audit.
+
+### Changed
+
+- `BouncyCastle.Cryptography` package reference is conditional —
+  `Condition="'$(TargetFramework)' != 'net10.0'"`. Net10 consumers no longer pull in BC.
+- Test project no longer references BouncyCastle directly; KATs route through `MlKem`.
+
+### Closed in `KNOWN-GAPS.md`
+
+- ✅ §C3 BCL ML-KEM on net10.0+
+- ✅ §C4 AOT compatibility on net10.0
+
+[0.1.0-preview.5]: https://github.com/systemslibrarian/PostQuantum.DataProtection/releases/tag/v0.1.0-preview.5
+
+## [0.1.0-preview.4] — 2026-06-04
+
+**Adoption pass + 4 roadmap items.** Backward-compatible.
+
+### Added — adoption (Tier A + B from the "10/10 usable" list)
+
+- **`ILogger<T>` integration** with pinned EventIds 1-23 across encryptor, decryptor, key
+  manager, and the new rotation hosted service. `NullLogger` fallback.
+- **Actionable error messages** naming the offending option, file path, and fix.
+- **`ProtectKeysWithPostQuantum(IConfigurationSection)`** overload for appsettings.json-only
+  wiring.
+- **`PostQuantumRotationHostedService`** driven by `PostQuantumDataProtectionOptions.RotationInterval`.
+  `TimeSpan.Zero` disables; any positive value enables scheduled rotation.
+- **`PostQuantum.DataProtection.Testing`** package with `FakePostQuantumKeyStore` +
+  `AddPostQuantumDataProtectionTesting()` for consumer unit tests — no Azure, no AWS, no disk.
+- **`PostQuantum.DataProtection.OpenTelemetry`** package — one-line
+  `.AddPostQuantumDataProtectionInstrumentation()` on `MeterProviderBuilder` /
+  `TracerProviderBuilder`.
+- **`PostQuantum.DataProtection.Aws`** package — AWS Secrets Manager-backed
+  `IPostQuantumKeyStore`.
+- **`pq-dp` dotnet tool** — `PostQuantum.DataProtection.Cli`. `pq-dp inspect <key.xml>`
+  prints envelope routing fields. No secrets emitted.
+- **Community files** — `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, GitHub issue templates, PR
+  template, `dependabot.yml`.
+- **DocFX site + GitHub Pages workflow** for the rendered API reference.
+- **`docs/migration.md`** for moving off DPAPI / Azure Key Vault key wrap / Certificate to PQ
+  without disrupting live cookies.
+
+### Added — roadmap items closed
+
+- **§C1 Selectable ML-KEM parameter set** — `MlKemParameterSet { Kem512, Kem768, Kem1024 }`
+  on `PostQuantumDataProtectionOptions.ParameterSet`. Existing keypairs keep decrypting under
+  their original set; keypair id prefix reflects the set.
+- **§C2 Retention / eviction API** — default-implemented `IPostQuantumKeyStore.DeleteAsync`
+  (overridden by every shipped store) + `PostQuantumKeyManager.PruneOlderThanAsync(threshold)`.
+  Refuses to delete the active keypair.
+- **§C5 X-Wing combiner** — `HybridKemMode.XWingHybrid` using SHA3-256 over
+  `(label ‖ mlKemSs ‖ classicalSs ‖ mlKemCt ‖ nonce)`. New `Mode` byte (=2); backward-compatible.
+- **§C7 Redis-backed key store** — `PostQuantum.DataProtection.Redis` package with
+  `RedisPostQuantumKeyStore` using `StackExchange.Redis`. One hash + one string. Natural pair
+  with `PersistKeysToStackExchangeRedis`.
+
+### Added — samples
+
+- **`samples/WorkerService.Sample`** — `PostQuantum.DataProtection` outside ASP.NET Core.
+- **`samples/Blazor.Sample`** — Blazor Server with PQ-protected circuit + cookie auth.
+- **`samples/MultiReplica.Sample`** — two simulated replicas sharing one Key Vault, end to end.
+
+### Changed
+
+- `KNOWN-GAPS.md` rewritten with **§A Closed / §B Deliberate / §C Roadmap / §D Honest gates on
+  1.0** structure.
+- `README.md` rewritten to lead with the package + sample matrix, performance numbers, and
+  observability table.
+
+### Tests
+
+- **100/100 across 5 suites** (was 81/81 across 3 in `preview.3`).
+
+[0.1.0-preview.4]: https://github.com/systemslibrarian/PostQuantum.DataProtection/releases/tag/v0.1.0-preview.4
+
+## [0.1.0-preview.3] — 2026-06-04
+
+**Production-readiness pass.** Backward-compatible. No crypto-logic changes.
+
+### Added
+
+- **NIST ACVP / FIPS 203 KAT** (`AcvpKatTests`) pinning BouncyCastle's ML-KEM-768 against a real
+  vector from
+  [`post-quantum-cryptography/KAT`](https://github.com/post-quantum-cryptography/KAT).
+  Standard-conformance verification, not self-consistency.
+- **`System.Diagnostics.Metrics` integration** — `Meter("PostQuantum.DataProtection")` with
+  counters and duration histograms, plus an `ActivitySource` for distributed tracing.
+- **Concurrency stress tests** — 16-thread `Parallel.ForEachAsync` exercising encrypt /
+  decrypt / `RotateAsync` plus a first-run race test.
+- **Code coverage** — coverlet collector with CI gate at ≥ 85% line / ≥ 75% branch
+  (current 89.5% / 78.6%).
+- **Reproducible-build verification** in CI — repacks twice and asserts byte-identical SHA-256.
+- **AOT/trimming audit** (`docs/aot.md`) — honest "not AOT-compatible because BC uses
+  reflection."
+- **BenchmarkDotNet harness** with numbers in `docs/benchmarks.md`.
+- **Production deployment guide** (`docs/deployment.md`).
+- **Property-based fuzz-lite tests** (`HostileInputContractTests`) — 30 000 random byte arrays
+  through both decoders on every CI run.
+- **SharpFuzz harness** in `fuzz/` for AFL-driven exploration.
+- **`PostQuantum.DataProtection.AzureKeyVault`** companion package — Azure Key Vault-backed
+  `IPostQuantumKeyStore` with `DefaultAzureCredential`.
+
+### Tests
+
+- **81 tests passing** across 2 suites (was 48 in `preview.2`).
+
+[0.1.0-preview.3]: https://github.com/systemslibrarian/PostQuantum.DataProtection/releases/tag/v0.1.0-preview.3
+
 ## [0.1.0-preview.3] — 2026-06-04
 
 Production-readiness pass. Closes 9 of the 11 items from the "what would push this to 10/10

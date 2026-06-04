@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
+    <ProjectReference Include="../../src/PostQuantum.DataProtection.Fips/PostQuantum.DataProtection.Fips.csproj" />
   </ItemGroup>
 
 </Project>

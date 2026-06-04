@@ -6,6 +6,7 @@
     <Project Path="src/PostQuantum.DataProtection.OpenTelemetry/PostQuantum.DataProtection.OpenTelemetry.csproj" />
     <Project Path="src/PostQuantum.DataProtection.Aws/PostQuantum.DataProtection.Aws.csproj" />
     <Project Path="src/PostQuantum.DataProtection.Redis/PostQuantum.DataProtection.Redis.csproj" />
+    <Project Path="src/PostQuantum.DataProtection.Fips/PostQuantum.DataProtection.Fips.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PostQuantum.DataProtection.Tests/PostQuantum.DataProtection.Tests.csproj" />
@@ -19,6 +20,7 @@
     <Project Path="samples/WorkerService.Sample/WorkerService.Sample.csproj" />
     <Project Path="samples/Blazor.Sample/Blazor.Sample.csproj" />
     <Project Path="samples/MultiReplica.Sample/MultiReplica.Sample.csproj" />
+    <Project Path="samples/AotSmokeTest/AotSmokeTest.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/PostQuantum.DataProtection.Benchmarks/PostQuantum.DataProtection.Benchmarks.csproj" />

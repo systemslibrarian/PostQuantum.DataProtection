@@ -1,0 +1,8 @@
+{
+  "//": "Pins the .NET SDK family so every contributor and CI run uses a compatible build of the toolchain. Bumping the minor version lets the build float forward; the major version stays fixed.",
+  "sdk": {
+    "version": "10.0.300",
+    "rollForward": "latestFeature",
+    "allowPrerelease": false
+  }
+}
