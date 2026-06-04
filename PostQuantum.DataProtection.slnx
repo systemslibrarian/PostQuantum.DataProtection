@@ -1,11 +1,19 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
+    <Project Path="src/PostQuantum.DataProtection.AzureKeyVault/PostQuantum.DataProtection.AzureKeyVault.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PostQuantum.DataProtection.Tests/PostQuantum.DataProtection.Tests.csproj" />
+    <Project Path="tests/PostQuantum.DataProtection.AzureKeyVault.Tests/PostQuantum.DataProtection.AzureKeyVault.Tests.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/AspNetCore.Sample/AspNetCore.Sample.csproj" />
+  </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/PostQuantum.DataProtection.Benchmarks/PostQuantum.DataProtection.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/fuzz/">
+    <Project Path="fuzz/PostQuantum.DataProtection.Fuzz/PostQuantum.DataProtection.Fuzz.csproj" />
   </Folder>
 </Solution>

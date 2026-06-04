@@ -39,3 +39,7 @@ desktop.ini
 
 ## Build artifact outputs from local pack
 artifacts/
+
+## BenchmarkDotNet output (transient — checked-in numbers live in docs/benchmarks.md)
+BenchmarkDotNet.Artifacts/
+**/BenchmarkDotNet.Artifacts/

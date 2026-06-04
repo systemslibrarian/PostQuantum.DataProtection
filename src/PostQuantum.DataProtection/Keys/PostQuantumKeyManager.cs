@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using PostQuantum.DataProtection.Diagnostics;
 using PostQuantum.DataProtection.Hybrid;
 using PostQuantum.DataProtection.Internal;
 using PostQuantum.KeyManagement;
@@ -182,6 +183,7 @@ public sealed class PostQuantumKeyManager : IDisposable
                 _activeKeyId = pair.KeyId;
             }
 
+            Telemetry.Rotations.Add(1);
             return pair.KeyId;
         }
         finally

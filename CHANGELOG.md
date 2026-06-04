@@ -8,6 +8,69 @@ binary wire format may change in breaking ways across `0.x` minor versions. See
 
 ## [Unreleased]
 
+## [0.1.0-preview.3] — 2026-06-04
+
+Production-readiness pass. Closes 9 of the 11 items from the "what would push this to 10/10
+production-ready" list. **Backward-compatible** — every envelope and keystore file from
+`preview.1` / `preview.2` still decodes byte-for-byte. **No crypto-logic changes.**
+
+### Added
+
+- **NIST ACVP / FIPS 203 KAT** (`AcvpKatTests`): pins BouncyCastle's ML-KEM-768 against a real
+  NIST-aligned vector from
+  [`post-quantum-cryptography/KAT`](https://github.com/post-quantum-cryptography/KAT) —
+  `d || z` seed → expected pk (1184 B), expected sk (2400 B), decapsulate the NIST ct →
+  expected ss (32 B). Standard-conformance verification, not "self-consistent" verification.
+- **`System.Diagnostics.Metrics` integration** — `Meter("PostQuantum.DataProtection")` with
+  counters (`encryptions`, `decryptions`, `decrypt_failures`, `rotations`), duration
+  histograms, and an `ActivitySource` for distributed tracing. Subscribe via OpenTelemetry's
+  `AddMeter` / `AddSource`.
+- **Concurrency stress tests** — 16-thread `Parallel.ForEachAsync` exercising the encryptor,
+  decryptor, and `RotateAsync` together; a "first-run race" test proving N concurrent first-
+  callers see exactly one inaugural keypair. The documented thread-safety claim is now a
+  tested claim.
+- **Code-coverage measurement** — coverlet collector with a CI gate at **≥ 85% line / ≥ 75%
+  branch**. Current coverage: **89.5% line / 78.6% branch**.
+- **Reproducible-build verification** in CI — repacks twice and asserts byte-identical SHA-256
+  on the two `.nupkg` outputs. A regression here means supply-chain integrity has slipped.
+- **AOT / trimming audit** (`docs/aot.md`) — not AOT-compatible today because BouncyCastle 2.6.x
+  uses runtime reflection. Documented honestly; `IsTrimmable=false` set explicitly.
+- **BenchmarkDotNet harness** in `benchmarks/` with real numbers in `docs/benchmarks.md`:
+  ML-KEM-768 keygen ~75 µs, encap ~93 µs, decap ~101 µs; full envelope encrypt ~89 µs, decrypt
+  ~137 µs on the reference host.
+- **Production deployment guide** (`docs/deployment.md`) — pre-deploy checklist, multi-replica
+  model, KEK rotation playbook, disaster-recovery matrix, monitoring signal list.
+- **Property-based "fuzz-lite" tests** (`HostileInputContractTests`) — 30 000 randomly-generated
+  byte arrays driven through `HybridKemEnvelope.Decode` and `PostQuantumKeyPair.Decode` on
+  every CI run, asserting the documented exception-type contract.
+- **SharpFuzz harness** in `fuzz/PostQuantum.DataProtection.Fuzz` for AFL-driven exploration of
+  the same decoders.
+
+### Companion package: `PostQuantum.DataProtection.AzureKeyVault 0.1.0-preview.3`
+
+- New package: Azure Key Vault-backed `IPostQuantumKeyStore`. Stores each ML-KEM-768 keypair as
+  a Key Vault Secret, plus a small "active" pointer secret. One-line wiring:
+  `services.AddPostQuantumDataProtectionAzureKeyVault(vaultUri)`. Uses
+  `DefaultAzureCredential` by default; supports any `TokenCredential`. Concurrent-safe;
+  active-pointer write is ordered after the keypair-secret write so a crash leaves an
+  "orphan keypair" rather than a "ghost active pointer."
+- Unit-tested via a narrow `IKeyVaultSecretClient` seam with an in-memory fake — 6 tests
+  passing, no Azure account required.
+
+### Tests
+
+- **78 xUnit tests passing** in the core suite (was 63 in `preview.2`):
+  - 3 new NIST ACVP KATs.
+  - 3 new concurrency stress tests.
+  - 3 new telemetry/metrics emission tests.
+  - 2 new keypair-observability tests (covering `ListKeysAsync`).
+  - 2 new health-check tests.
+  - 3 new property-based fuzz-lite contract tests (30 000 iterations each).
+- **6 xUnit tests passing** in the new `PostQuantum.DataProtection.AzureKeyVault.Tests` suite.
+
+[Unreleased]: https://github.com/systemslibrarian/PostQuantum.DataProtection/compare/v0.1.0-preview.3...HEAD
+[0.1.0-preview.3]: https://github.com/systemslibrarian/PostQuantum.DataProtection/releases/tag/v0.1.0-preview.3
+
 ## [0.1.0-preview.2] — 2026-06-04
 
 Hardening + observability pass on top of `0.1.0-preview.1`. **Backward-compatible** — every
@@ -40,7 +103,6 @@ identical).
 
 - **63/63** xUnit tests passing (was 48 in `preview.1`).
 
-[Unreleased]: https://github.com/systemslibrarian/PostQuantum.DataProtection/compare/v0.1.0-preview.2...HEAD
 [0.1.0-preview.2]: https://github.com/systemslibrarian/PostQuantum.DataProtection/releases/tag/v0.1.0-preview.2
 
 ## [0.1.0-preview.1] — 2026-06-03

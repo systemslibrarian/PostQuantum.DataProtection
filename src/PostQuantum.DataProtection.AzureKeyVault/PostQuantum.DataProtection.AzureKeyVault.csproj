@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>PostQuantum.DataProtection.AzureKeyVault</RootNamespace>
+    <AssemblyName>PostQuantum.DataProtection.AzureKeyVault</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <!-- ───────────────────────── NuGet package metadata ───────────────────────── -->
+  <PropertyGroup>
+    <PackageId>PostQuantum.DataProtection.AzureKeyVault</PackageId>
+    <Version>0.1.0-preview.3</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.3</FileVersion>
+    <Authors>Paul Clark</Authors>
+    <Company>Systems Librarian</Company>
+    <Product>PostQuantum.DataProtection.AzureKeyVault</Product>
+    <Title>PostQuantum.DataProtection.AzureKeyVault — Azure Key Vault-backed PQ keypair store</Title>
+    <Description>Azure Key Vault-backed IPostQuantumKeyStore for PostQuantum.DataProtection. Stores the ML-KEM-768 keypairs that wrap ASP.NET Core Data Protection keys in an Azure Key Vault Secrets vault — durable, audited, and shareable across replicas — without ever placing plaintext on disk. The PQ secret key is wrapped by the host IContentKeyProvider before it reaches Key Vault, so Key Vault sees only an opaque blob; the vault is a durable persistence target, not a new trust boundary. One-line wiring: services.AddPostQuantumDataProtectionAzureKeyVault(vaultUri). Multi-targets net8.0 / net9.0 / net10.0 with deterministic builds, SourceLink, and symbol packages.</Description>
+    <PackageTags>post-quantum;pqc;ml-kem;azure;keyvault;aspnetcore;data-protection;cryptography;security</PackageTags>
+    <PackageProjectUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright (c) Paul Clark</Copyright>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReleaseNotes>0.1.0-preview.3: First public preview. Azure Key Vault-backed IPostQuantumKeyStore for PostQuantum.DataProtection. Stores ML-KEM-768 keypairs as Key Vault Secrets (one secret per keypair plus a small &quot;active&quot; pointer secret); the PQ secret key is already envelope-encrypted by the host IContentKeyProvider before it touches the vault. Supports DefaultAzureCredential out of the box and any TokenCredential a caller wants to supply. Concurrent-safe; the &quot;active&quot; pointer is updated atomically through Key Vault's per-secret versioning. Tracks roadmap items in PostQuantum.DataProtection/future.md. No third-party audit yet; see PostQuantum.DataProtection/KNOWN-GAPS.md for scope.</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <!-- ───────────────────────────── SourceLink / symbols ─────────────────────── -->
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
+    <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.7.0" />
+    <PackageReference Include="Azure.Identity" Version="1.13.1" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PostQuantum.DataProtection.AzureKeyVault.Tests" />
+  </ItemGroup>
+
+</Project>

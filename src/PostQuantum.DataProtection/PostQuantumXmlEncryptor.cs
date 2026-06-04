@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
+using PostQuantum.DataProtection.Diagnostics;
 using PostQuantum.DataProtection.Hybrid;
 using PostQuantum.DataProtection.Keys;
 using PostQuantum.KeyManagement;
@@ -55,22 +57,37 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
     {
         ArgumentNullException.ThrowIfNull(plaintextElement);
 
-        // IXmlEncryptor is synchronous by contract. The PQ key manager and content-key provider
-        // expose async APIs; ASP.NET Core's data-protection key ring loader calls Encrypt on the
-        // startup thread (or under a sync-over-async wrapper of its own), so a single blocking
-        // join here is acceptable and is the same pattern PostQuantum.KeyManagement's DI hosting
-        // uses for the keyring store.
-        // ValueTask must not be awaited twice; AsTask() materialises it once so GetResult is safe (CA2012).
-        HybridKemEnvelope envelope = EncryptAsync(plaintextElement).AsTask().GetAwaiter().GetResult();
+        long start = Stopwatch.GetTimestamp();
+        using Activity? activity = Telemetry.ActivitySource.StartActivity("PostQuantum.DataProtection.Encrypt", ActivityKind.Internal);
+        activity?.SetTag("pq.mode", _mode.ToString());
 
-        var encryptedElement = new XElement(
-            XName.Get(XmlElementName, XmlNamespace),
-            new XAttribute("version", HybridKemEnvelope.CurrentFormatVersion),
-            new XAttribute("mode", envelope.Mode.ToString()),
-            new XAttribute("publicKeyId", envelope.PublicKeyId),
-            envelope.Encode());
+        try
+        {
+            // IXmlEncryptor is synchronous by contract. The PQ key manager and content-key provider
+            // expose async APIs; ASP.NET Core's data-protection key ring loader calls Encrypt on the
+            // startup thread (or under a sync-over-async wrapper of its own), so a single blocking
+            // join here is acceptable and is the same pattern PostQuantum.KeyManagement's DI hosting
+            // uses for the keyring store.
+            // ValueTask must not be awaited twice; AsTask() materialises it once so GetResult is safe (CA2012).
+            HybridKemEnvelope envelope = EncryptAsync(plaintextElement).AsTask().GetAwaiter().GetResult();
 
-        return new EncryptedXmlInfo(encryptedElement, typeof(PostQuantumXmlDecryptor));
+            var encryptedElement = new XElement(
+                XName.Get(XmlElementName, XmlNamespace),
+                new XAttribute("version", HybridKemEnvelope.CurrentFormatVersion),
+                new XAttribute("mode", envelope.Mode.ToString()),
+                new XAttribute("publicKeyId", envelope.PublicKeyId),
+                envelope.Encode());
+
+            activity?.SetTag("pq.publicKeyId", envelope.PublicKeyId);
+            Telemetry.Encryptions.Add(1, new KeyValuePair<string, object?>("mode", _mode.ToString()));
+            return new EncryptedXmlInfo(encryptedElement, typeof(PostQuantumXmlDecryptor));
+        }
+        finally
+        {
+            Telemetry.EncryptDuration.Record(
+                Stopwatch.GetElapsedTime(start).TotalMilliseconds,
+                new KeyValuePair<string, object?>("mode", _mode.ToString()));
+        }
     }
 
     private async ValueTask<HybridKemEnvelope> EncryptAsync(XElement plaintextElement)

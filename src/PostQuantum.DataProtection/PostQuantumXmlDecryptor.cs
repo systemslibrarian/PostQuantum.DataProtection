@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Microsoft.Extensions.DependencyInjection;
+using PostQuantum.DataProtection.Diagnostics;
 using PostQuantum.DataProtection.Hybrid;
 using PostQuantum.DataProtection.Keys;
 using PostQuantum.KeyManagement;
@@ -62,26 +64,69 @@ public sealed class PostQuantumXmlDecryptor : IXmlDecryptor
     {
         ArgumentNullException.ThrowIfNull(encryptedElement);
 
-        if (encryptedElement.Name != XName.Get(PostQuantumXmlEncryptor.XmlElementName, PostQuantumXmlEncryptor.XmlNamespace))
+        long start = Stopwatch.GetTimestamp();
+        using Activity? activity = Telemetry.ActivitySource.StartActivity("PostQuantum.DataProtection.Decrypt", ActivityKind.Internal);
+        string mode = "unknown";
+
+        try
         {
-            throw new CryptographicException(
-                $"Expected an element named '{PostQuantumXmlEncryptor.XmlElementName}' in namespace '{PostQuantumXmlEncryptor.XmlNamespace}'.");
+            if (encryptedElement.Name != XName.Get(PostQuantumXmlEncryptor.XmlElementName, PostQuantumXmlEncryptor.XmlNamespace))
+            {
+                Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "wrong_xml_element"));
+                throw new CryptographicException(
+                    $"Expected an element named '{PostQuantumXmlEncryptor.XmlElementName}' in namespace '{PostQuantumXmlEncryptor.XmlNamespace}'.");
+            }
+
+            string token = encryptedElement.Value.Trim();
+            HybridKemEnvelope envelope;
+            try
+            {
+                envelope = HybridKemEnvelope.Decode(token);
+            }
+            catch
+            {
+                Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "malformed_envelope"));
+                throw;
+            }
+
+            mode = envelope.Mode.ToString();
+            activity?.SetTag("pq.mode", mode);
+            activity?.SetTag("pq.publicKeyId", envelope.PublicKeyId);
+
+            // The envelope is self-describing; the XML attributes are diagnostic. Trust the encoded
+            // envelope as the source of truth and re-check the cross-references so a malformed-but-
+            // valid-looking element cannot fool us.
+            if (envelope.KemAlgorithm != MlKem.AlgorithmName)
+            {
+                Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "unsupported_algorithm"));
+                throw new CryptographicException(
+                    $"Envelope was produced for KEM algorithm '{envelope.KemAlgorithm}'; this decryptor only supports '{MlKem.AlgorithmName}'.");
+            }
+
+            try
+            {
+                // ValueTask must not be awaited twice; AsTask() materialises it once so GetResult is safe (CA2012).
+                XElement result = DecryptAsync(envelope).AsTask().GetAwaiter().GetResult();
+                Telemetry.Decryptions.Add(1, new KeyValuePair<string, object?>("mode", mode));
+                return result;
+            }
+            catch (KeyNotFoundException)
+            {
+                Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "unknown_keypair"));
+                throw;
+            }
+            catch (CryptographicException)
+            {
+                Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "auth_failed"));
+                throw;
+            }
         }
-
-        string token = encryptedElement.Value.Trim();
-        HybridKemEnvelope envelope = HybridKemEnvelope.Decode(token);
-
-        // The envelope is self-describing; the XML attributes are diagnostic. Trust the encoded
-        // envelope as the source of truth and re-check the cross-references so a malformed-but-
-        // valid-looking element cannot fool us.
-        if (envelope.KemAlgorithm != MlKem.AlgorithmName)
+        finally
         {
-            throw new CryptographicException(
-                $"Envelope was produced for KEM algorithm '{envelope.KemAlgorithm}'; this decryptor only supports '{MlKem.AlgorithmName}'.");
+            Telemetry.DecryptDuration.Record(
+                Stopwatch.GetElapsedTime(start).TotalMilliseconds,
+                new KeyValuePair<string, object?>("mode", mode));
         }
-
-        // ValueTask must not be awaited twice; AsTask() materialises it once so GetResult is safe (CA2012).
-        return DecryptAsync(envelope).AsTask().GetAwaiter().GetResult();
     }
 
     private async ValueTask<XElement> DecryptAsync(HybridKemEnvelope envelope)

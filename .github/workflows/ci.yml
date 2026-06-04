@@ -41,9 +41,74 @@ jobs:
       - name: Test
         run: dotnet test tests/PostQuantum.DataProtection.Tests/PostQuantum.DataProtection.Tests.csproj -c Release --no-build --logger "console;verbosity=normal"
 
+      - name: Test with coverage (Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          rm -rf artifacts/coverage
+          dotnet test tests/PostQuantum.DataProtection.Tests/PostQuantum.DataProtection.Tests.csproj \
+            -c Release --no-build \
+            --collect:"XPlat Code Coverage" \
+            --settings coverlet.runsettings \
+            --results-directory artifacts/coverage
+
+      - name: Coverage gate (≥ 85% line, ≥ 75% branch)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          report=$(ls artifacts/coverage/*/coverage.cobertura.xml | head -1)
+          echo "Coverage report: $report"
+          line=$(python3 -c "import xml.etree.ElementTree as ET; print(ET.parse('$report').getroot().get('line-rate'))")
+          branch=$(python3 -c "import xml.etree.ElementTree as ET; print(ET.parse('$report').getroot().get('branch-rate'))")
+          echo "line-rate=$line"
+          echo "branch-rate=$branch"
+          python3 - <<EOF
+          line, branch = float("$line"), float("$branch")
+          line_min, branch_min = 0.85, 0.75
+          ok = True
+          if line < line_min:
+              print(f"FAIL: line coverage {line:.2%} < {line_min:.0%}"); ok = False
+          else:
+              print(f"OK:   line coverage {line:.2%} ≥ {line_min:.0%}")
+          if branch < branch_min:
+              print(f"FAIL: branch coverage {branch:.2%} < {branch_min:.0%}"); ok = False
+          else:
+              print(f"OK:   branch coverage {branch:.2%} ≥ {branch_min:.0%}")
+          import sys; sys.exit(0 if ok else 1)
+          EOF
+
+      - name: Upload coverage report
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: artifacts/coverage/**/coverage.cobertura.xml
+          if-no-files-found: warn
+
       - name: Pack (Linux only — packs are platform-independent)
         if: matrix.os == 'ubuntu-latest'
         run: dotnet pack src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj -c Release --no-build -o artifacts
+
+      - name: Reproducible-build check — repack and assert SHA-256 match
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/repack
+          # Repack from a clean intermediate so we exercise the deterministic build path, not the cache.
+          dotnet build src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj -c Release --no-restore /p:ContinuousIntegrationBuild=true
+          dotnet pack src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj -c Release --no-build -o artifacts/repack /p:ContinuousIntegrationBuild=true
+
+          a=$(sha256sum artifacts/PostQuantum.DataProtection.*.nupkg | awk '{print $1}')
+          b=$(sha256sum artifacts/repack/PostQuantum.DataProtection.*.nupkg | awk '{print $1}')
+          echo "first  pack sha256: $a"
+          echo "second pack sha256: $b"
+          if [ "$a" != "$b" ]; then
+            echo "FAIL: .nupkg is not reproducible — same source produced different bytes."
+            echo "      (This usually means a non-deterministic timestamp, embedded path, or transient ID slipped in.)"
+            exit 1
+          fi
+          echo "OK: .nupkg is byte-identical across two independent packs."
 
       - name: Upload .nupkg / .snupkg
         if: matrix.os == 'ubuntu-latest'
