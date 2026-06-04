@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <RootNamespace>PostQuantum.DataProtection</RootNamespace>
+    <AssemblyName>PostQuantum.DataProtection</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <!-- ───────────────────────── NuGet package metadata ───────────────────────── -->
+  <PropertyGroup>
+    <PackageId>PostQuantum.DataProtection</PackageId>
+    <Version>0.1.0-preview.1</Version>
+    <!--
+      AssemblyVersion stays flat at 0.1.0.0 across all 0.1.x previews so downstream consumers do not
+      have to bump references for every preview iteration. FileVersion encodes the preview iteration
+      in the revision slot (0.1.0.N) so on-disk DLLs remain distinguishable per preview when
+      diagnosing field installations.
+    -->
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.1</FileVersion>
+    <Authors>Paul Clark</Authors>
+    <Company>Systems Librarian</Company>
+    <Product>PostQuantum.DataProtection</Product>
+    <Title>PostQuantum.DataProtection — post-quantum / hybrid key wrapping for ASP.NET Core Data Protection</Title>
+    <Description>Post-quantum / hybrid key wrapping for ASP.NET Core Data Protection. Plugs in as an IXmlEncryptor / IXmlDecryptor so cookie keys, antiforgery keys, session tickets, and any IDataProtector-protected payload at rest are encrypted with ML-KEM-768 (FIPS 203) and AES-256-GCM in a hybrid envelope. The classical layer reuses PostQuantum.KeyManagement (Argon2id-derived KEK + AES-256-GCM envelope) so the same passphrase-managed key ring already in your host protects the long-lived PQ secret key. Hybrid by default — break either layer and confidentiality holds. Multi-targets net8.0 / net9.0 / net10.0 with deterministic builds, SourceLink, and symbol packages. See KNOWN-GAPS.md and docs/threat-model.md for the precise, honest scope.</Description>
+    <PackageTags>post-quantum;pqc;ml-kem;kyber;fips-203;hybrid-encryption;aes-gcm;cryptography;aspnetcore;data-protection;cookies;antiforgery;dependency-injection;security</PackageTags>
+    <PackageProjectUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/systemslibrarian/PostQuantum.DataProtection</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Copyright>Copyright (c) Paul Clark</Copyright>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReleaseNotes>0.1.0-preview.1: first public preview. Provides an IXmlEncryptor / IXmlDecryptor pair that protects ASP.NET Core Data Protection keys with an ML-KEM-768 (FIPS 203) + AES-256-GCM hybrid envelope; the classical layer reuses PostQuantum.KeyManagement (Argon2id-derived KEK + AES-256-GCM) so the long-lived PQ secret key is itself envelope-encrypted at rest. Includes ProtectKeysWithPostQuantum() on IDataProtectionBuilder, a versioned binary envelope format with hostile-input-resistant decoder, FilePostQuantumKeyStore for atomic on-disk persistence of the PQ keypair, and an end-to-end ASP.NET Core sample protecting cookies and antiforgery tokens. Multi-targets net8.0 / net9.0 / net10.0 with deterministic builds, SourceLink, symbol packages, and SBOM-friendly metadata. ML-KEM-512 / 1024, additional KEM algorithms, and cloud-KMS-backed PQ key stores are roadmap (see future.md). No third-party audit yet; see KNOWN-GAPS.md and docs/threat-model.md for the precise scope of what is and is not protected.</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <!-- ───────────────────────────── SourceLink / symbols ─────────────────────── -->
+  <PropertyGroup>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PostQuantum.DataProtection.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageReference Include="PostQuantum.KeyManagement" Version="0.4.0-preview.2" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Abstractions" Version="8.0.27" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="8.0.27" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+
+    <!--
+      Microsoft.AspNetCore.DataProtection.Extensions transitively brings in
+      System.Security.Cryptography.Xml. The 8.0.x line pre-8.0.3 carries published high-severity
+      advisories (GHSA-37gx-xxp4-5rgx, GHSA-w3x6-4m5h-cxqf); we pin to the latest patched 8.0.x
+      explicitly so a transitive resolution cannot land on the unpatched version under any nuget.
+    -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.3" />
+  </ItemGroup>
+
+</Project>

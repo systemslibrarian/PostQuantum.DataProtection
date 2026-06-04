@@ -1,0 +1,41 @@
+## .NET / Visual Studio / Rider build output
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.user
+*.suo
+*.userprefs
+.vs/
+.vscode/
+.idea/
+
+## Test results
+[Tt]est[Rr]esult*/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+project.lock.json
+project.assets.json
+
+## Local dev keys produced by the sample
+samples/**/keys/
+
+## SBOM output directories
+**/sbom/
+**/_manifest/
+
+## OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## Build artifact outputs from local pack
+artifacts/

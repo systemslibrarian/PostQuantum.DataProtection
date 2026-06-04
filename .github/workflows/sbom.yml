@@ -1,0 +1,41 @@
+name: sbom
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cyclonedx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Install CycloneDX
+        run: dotnet tool install --global CycloneDX
+
+      - name: Restore
+        run: dotnet restore src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj
+
+      - name: Generate CycloneDX SBOM (JSON, all frameworks)
+        run: |
+          mkdir -p artifacts/sbom
+          dotnet CycloneDX src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj -o artifacts/sbom -j
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: artifacts/sbom/bom.json
+          if-no-files-found: error

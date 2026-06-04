@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PostQuantum.DataProtection.Tests/PostQuantum.DataProtection.Tests.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/AspNetCore.Sample/AspNetCore.Sample.csproj" />
+  </Folder>
+</Solution>
