@@ -112,6 +112,7 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
         ContentKey? classicalDek = null;
         byte[] nonce = RandomNumberGenerator.GetBytes(HybridKemEnvelope.NonceLength);
         byte[]? derivedKey = null;
+        byte[]? plaintextBytes = null;
 
         try
         {
@@ -129,7 +130,7 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
                 derivedKey = HybridCombiner.DeriveMlKemOnly(mlKemSharedSecret, nonce);
             }
 
-            byte[] plaintextBytes = Encoding.UTF8.GetBytes(plaintextElement.ToString(SaveOptions.DisableFormatting));
+            plaintextBytes = Encoding.UTF8.GetBytes(plaintextElement.ToString(SaveOptions.DisableFormatting));
             byte[] ciphertext = new byte[plaintextBytes.Length];
             byte[] tag = new byte[HybridKemEnvelope.TagLength];
 
@@ -161,6 +162,14 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
             if (derivedKey is not null)
             {
                 CryptographicOperations.ZeroMemory(derivedKey);
+            }
+
+            // The serialized Data Protection key bytes are the most sensitive plaintext we touch;
+            // zero them once they are inside the AES-GCM ciphertext. (The intermediate string from
+            // XElement.ToString() is GC-managed and cannot be zeroed — documented in the threat model.)
+            if (plaintextBytes is not null)
+            {
+                CryptographicOperations.ZeroMemory(plaintextBytes);
             }
 
             classicalDek?.Dispose();

@@ -11,7 +11,7 @@
 
   <PropertyGroup>
     <PackageId>PostQuantum.DataProtection.Testing</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
     <FileVersion>0.1.0.7</FileVersion>
     <Authors>Paul Clark</Authors>

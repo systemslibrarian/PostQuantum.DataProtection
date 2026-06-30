@@ -8,6 +8,29 @@ binary wire format may change in breaking ways across `0.x` minor versions. See
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-06-30
+
+Patch: robustness + hygiene fixes from an external code review. **No wire-format change** — every
+1.0.0 envelope decodes identically; a drop-in over 1.0.0.
+
+### Fixed
+
+- **Decryptor fails closed uniformly.** A malformed/truncated envelope (previously a leaked
+  `FormatException`) and a structurally-valid-but-invalid envelope such as a wrong-sized KEM
+  ciphertext (previously a leaked `ArgumentException`) now both surface as `CryptographicException`
+  — the type ASP.NET Core Data Protection's key-ring loader expects, so it can isolate one corrupt
+  element instead of taking an unexpected exception to the host.
+- **Encryptor zeroes its plaintext buffer.** The serialized Data Protection key bytes are now zeroed
+  after encryption (every other key/secret was already zeroed; this closes the one gap).
+- **File store cold-start race.** `FilePostQuantumKeyStore` handles the concurrent first-writer
+  file-creation race (`File.Move` TOCTOU) by converging to the documented last-write-wins instead of
+  throwing an unhandled `IOException` at startup.
+
+### Changed
+
+- Bumped the `PostQuantum.KeyManagement` dependency to `1.0.1`.
+- Corrected an overclaiming comment in `HybridCombiner` about parameter-set agility.
+
 ## [1.0.0] — 2026-06-30
 
 **First stable release — code-complete and wire-format-frozen.** Depends on the stable

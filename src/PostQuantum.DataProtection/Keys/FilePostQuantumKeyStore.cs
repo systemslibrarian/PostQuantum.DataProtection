@@ -225,7 +225,18 @@ public sealed class FilePostQuantumKeyStore : IPostQuantumKeyStore
             }
             else
             {
-                File.Move(tempPath, path);
+                try
+                {
+                    File.Move(tempPath, path);
+                }
+                catch (IOException) when (File.Exists(path))
+                {
+                    // TOCTOU: another writer (e.g. a concurrently cold-starting replica on a shared
+                    // volume) created the file between our existence check and this move. Fall back to
+                    // the retry-aware replace so we converge to the documented last-write-wins instead
+                    // of throwing an unhandled IOException at startup.
+                    ReplaceWithRetry(tempPath, path);
+                }
             }
         }
         catch

@@ -20,7 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
     <ProjectReference Include="../../src/PostQuantum.DataProtection.Testing/PostQuantum.DataProtection.Testing.csproj" />
-    <PackageReference Include="PostQuantum.KeyManagement" Version="1.0.0" />
+    <PackageReference Include="PostQuantum.KeyManagement" Version="1.0.1" />
   </ItemGroup>
 
 </Project>

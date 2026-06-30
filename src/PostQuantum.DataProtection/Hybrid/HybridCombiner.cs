@@ -9,11 +9,14 @@ namespace PostQuantum.DataProtection.Hybrid;
 /// <remarks>
 /// <para>
 /// The combiner mirrors the IRTF / NIST-recommended pattern for hybrid KEMs: concatenate the
-/// component secrets in a fixed order and feed them to HKDF with a domain-separation label that
-/// pins the algorithm names. Including the labels in <c>info</c> prevents cross-protocol confusion
-/// — a future caller cannot reuse a derived key from this combiner anywhere else, and a future
-/// version of the library that swaps in (say) ML-KEM-1024 will produce a different key for
-/// otherwise-identical inputs.
+/// component secrets in a fixed order and feed them to HKDF with a domain-separation label. The
+/// label pins the <em>mode</em> and the v1 wire-format version, so the three modes derive distinct
+/// keys from identical secrets and a derived key cannot be reused in another protocol. The label is
+/// a fixed string (it always reads <c>"ML-KEM-768"</c>) and does <b>not</b> encode the runtime ML-KEM
+/// parameter set — that would be a wire-format change, and the format is frozen at v1. Distinctness
+/// across parameter sets instead comes from the parameter-set-specific ML-KEM shared secret, and in
+/// <see cref="HybridKemMode.XWingHybrid"/> additionally from the bound ML-KEM ciphertext. A future
+/// wire-format version would change the label and thus the derived key for otherwise-identical inputs.
 /// </para>
 /// <para>
 /// The HKDF salt is the per-envelope nonce (12 random bytes), so even when the same KEM keypair

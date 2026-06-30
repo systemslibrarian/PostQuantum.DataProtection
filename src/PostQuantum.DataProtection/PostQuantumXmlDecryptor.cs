@@ -91,10 +91,16 @@ public sealed class PostQuantumXmlDecryptor : IXmlDecryptor
             {
                 envelope = HybridKemEnvelope.Decode(token);
             }
-            catch
+            catch (Exception ex) when (ex is not CryptographicException)
             {
+                // Decode throws FormatException/ArgumentException on malformed or truncated input.
+                // Surface it as CryptographicException so ASP.NET Core Data Protection's key-ring
+                // loader isolates this one corrupt element (its documented fail-closed contract for
+                // an IXmlDecryptor) instead of taking an unexpected exception type to the host.
                 Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "malformed_envelope"));
-                throw;
+                throw new CryptographicException(
+                    "Cannot decrypt: the persisted Data Protection element is not a well-formed PostQuantum envelope " +
+                    "(malformed or truncated). Treating it as corrupt.", ex);
             }
 
             mode = envelope.Mode.ToString();
@@ -140,6 +146,17 @@ public sealed class PostQuantumXmlDecryptor : IXmlDecryptor
                 Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "auth_failed"));
                 LogAuthFailed(_logger, envelope.PublicKeyId, ex);
                 throw;
+            }
+            catch (Exception ex)
+            {
+                // A structurally valid envelope can still carry invalid material — e.g. a KEM
+                // ciphertext of the wrong length makes ML-KEM decapsulation throw ArgumentException,
+                // or an unparseable classical token throws FormatException. Normalise every such
+                // failure to CryptographicException so the contract is uniformly fail-closed.
+                Telemetry.DecryptFailures.Add(1, new KeyValuePair<string, object?>("reason", "malformed_envelope"));
+                throw new CryptographicException(
+                    "Cannot decrypt: the envelope is structurally invalid (for example a wrong-sized KEM ciphertext " +
+                    "or an unparseable classical wrapped-key token). Treating it as corrupt or tampered.", ex);
             }
         }
         finally
