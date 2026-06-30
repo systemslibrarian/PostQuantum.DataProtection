@@ -23,7 +23,9 @@ public static class OpenTelemetryBuilderExtensions
 
     /// <summary>
     /// Registers the <c>PostQuantum.DataProtection</c> ActivitySource with this provider, so the
-    /// "Encrypt" / "Decrypt" activities show up in traces alongside the host's other spans.
+    /// Encrypt / Decrypt / Rotate activities show up in traces alongside the host's other spans. The
+    /// ActivitySource name equals <see cref="Telemetry.MeterName"/> by design, so the same constant
+    /// names both the meter and the source.
     /// </summary>
     public static TracerProviderBuilder AddPostQuantumDataProtectionInstrumentation(this TracerProviderBuilder builder)
     {

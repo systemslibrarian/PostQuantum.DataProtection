@@ -31,10 +31,12 @@ The library uses three `ILogger<T>` categories:
 | 10 | `PqKeyManagerLoaded` | Information | PostQuantumKeyManager | Loaded {Count} PQ keypair(s) from store; active key is '{ActiveKeyId}'. |
 | 11 | `PqKeyManagerFirstRun` | Information | PostQuantumKeyManager | PQ keystore is empty — generating the inaugural ML-KEM-768 keypair. |
 | 12 | `PqKeyManagerRotated` | Information | PostQuantumKeyManager | Generated new active PQ keypair '{KeyId}'. Old keypairs remain loaded and continue to decrypt previously-wrapped Data Protection keys. |
-| 20 | `PqRotationDisabled` | Debug | PostQuantumRotationHostedService | Scheduled PQ keypair rotation is disabled (RotationInterval = TimeSpan.Zero). |
+| 20 | `PqRotationDisabled` | Debug | PostQuantumRotationHostedService | Scheduled PQ keypair rotation is disabled (RotationInterval is null). |
 | 21 | `PqRotationStarted` | Information | PostQuantumRotationHostedService | Scheduled PQ keypair rotation enabled; first rotation in {Interval}. |
 | 22 | `PqRotationCompleted` | Information | PostQuantumRotationHostedService | Scheduled PQ keypair rotation completed; new active key '{KeyId}'. |
 | 23 | `PqRotationFailed` | Error | PostQuantumRotationHostedService | Scheduled PQ keypair rotation failed; the host is still alive and will retry in {Interval}. |
+| 24 | `PqRotationSkipped` | Debug | PostQuantumRotationHostedService | Skipped scheduled PQ keypair rotation: another replica holds the rotation lease this window. |
+| 25 | `PqStartupValidated` | Information | PostQuantumStartupValidator | PostQuantum.DataProtection initialized on startup; active key is '{ActiveKeyId}'. |
 
 ## Alert / dashboard guidance
 

@@ -11,7 +11,7 @@
 
   <PropertyGroup>
     <PackageId>PostQuantum.DataProtection.Redis</PackageId>
-    <Version>0.1.0-preview.7</Version>
+    <Version>1.0.0</Version>
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
     <FileVersion>0.1.0.7</FileVersion>
     <Authors>Paul Clark</Authors>

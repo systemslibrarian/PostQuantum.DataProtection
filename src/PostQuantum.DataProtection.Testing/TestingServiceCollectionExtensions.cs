@@ -32,6 +32,16 @@ public static class PostQuantumDataProtectionTestingServiceCollectionExtensions
     /// <c>Protect</c> / <c>Unprotect</c> against, without a real keystore on disk.
     /// </summary>
     public static IServiceCollection AddPostQuantumDataProtectionTesting(this IServiceCollection services)
+        => services.AddPostQuantumDataProtectionTesting(HybridKemMode.XWingHybrid);
+
+    /// <summary>
+    /// Registers the same in-memory PQ data-protection stack as
+    /// <see cref="AddPostQuantumDataProtectionTesting(IServiceCollection)"/>, but lets the test pick
+    /// the <see cref="HybridKemMode"/> so mode-agnostic consumer code can be exercised under
+    /// <see cref="HybridKemMode.MlKemOnly"/>, <see cref="HybridKemMode.Hybrid"/>, and
+    /// <see cref="HybridKemMode.XWingHybrid"/>.
+    /// </summary>
+    public static IServiceCollection AddPostQuantumDataProtectionTesting(this IServiceCollection services, HybridKemMode mode)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -57,7 +67,7 @@ public static class PostQuantumDataProtectionTestingServiceCollectionExtensions
             .Configure<PostQuantumKeyManager, IContentKeyProvider>(
                 (options, pqKeys, contentKeys) =>
                 {
-                    options.XmlEncryptor = new PostQuantumXmlEncryptor(pqKeys, contentKeys, HybridKemMode.Hybrid);
+                    options.XmlEncryptor = new PostQuantumXmlEncryptor(pqKeys, contentKeys, mode);
                 });
 
         return services;

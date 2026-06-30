@@ -100,12 +100,19 @@ builder.Services
     .ProtectKeysWithPostQuantum(options =>
     {
         options.KeyStorePath = "keys/pq-keystore.txt";
-        options.Mode = HybridKemMode.Hybrid;
-        options.RotationInterval = TimeSpan.FromDays(90);  // optional auto-rotation
+        // Mode defaults to HybridKemMode.XWingHybrid (recommended). Set Hybrid or MlKemOnly to override.
+        options.RotationInterval = TimeSpan.FromDays(90);  // optional auto-rotation; null disables
     });
 
 builder.Services.AddHealthChecks().AddPostQuantumDataProtection();
 ```
+
+> **One-call shortcut.** `builder.Services.AddPostQuantumDataProtection("keys/pq-keystore.txt")`
+> calls `AddDataProtection()` and `ProtectKeysWithPostQuantum(...)` for you and returns the
+> `IDataProtectionBuilder` so you can still chain `.PersistKeysToFileSystem(...)`. By default the
+> chain initializes eagerly at startup (`ValidateOnStartup`), so a missing KEK, a wrong passphrase,
+> or an unwritable keystore fails fast at boot rather than on the first request. Full option list:
+> [`docs/configuration.md`](docs/configuration.md).
 
 ### Configure from `appsettings.json` instead of code
 
@@ -113,7 +120,7 @@ builder.Services.AddHealthChecks().AddPostQuantumDataProtection();
 {
   "PostQuantumDataProtection": {
     "KeyStorePath": "keys/pq-keystore.txt",
-    "Mode": "Hybrid",
+    "Mode": "XWingHybrid",
     "RotationInterval": "90.00:00:00"
   }
 }
@@ -160,16 +167,23 @@ public void My_service_protects_and_unprotects()
 }
 ```
 
-### Inspect a persisted key file from the CLI
+### Inspect and triage from the CLI
 
 ```bash
 dotnet tool install --global PostQuantum.DataProtection.Cli --prerelease
-pq-dp inspect keys/data-protection/key-c6b3b03f-b73a-477b-92e5-d19ae0e0b5fd.xml
+
+pq-dp inspect keys/data-protection/key-c6b3b03f-….xml   # one envelope's routing fields
+pq-dp keys list   keys/pq-keystore.txt                   # every keypair: id, algorithm, age, active
+pq-dp doctor      keys/pq-keystore.txt                   # keystore health check (exit 1 on problems)
+pq-dp verify      keys/data-protection                   # decode every persisted envelope (exit 1 on failures)
 ```
+
+All `pq-dp` commands are read-only, emit no secrets, and never need the host KEK — safe for incident
+response. Example `inspect` output:
 
 ```text
 Format version:      1
-Mode:                Hybrid
+Mode:                XWingHybrid
 KEM algorithm:       ML-KEM-768
 Public key id:       pq-mlkem768-4411e03446f5
 KEM ciphertext:      1088 bytes
@@ -283,10 +297,11 @@ dotnet build PostQuantum.DataProtection.slnx -c Release
 dotnet test PostQuantum.DataProtection.slnx -c Release --no-build
 ```
 
-**87 tests** across four suites — core, AzureKeyVault, Aws, Testing. Coverage gate at ≥ 85% line
-/ ≥ 75% branch (current 89.5% line / 78.6% branch). Property-based fuzz-lite contract tests
-drive 30 000 random inputs through both decoders on every run; a standalone SharpFuzz harness in
-`fuzz/` is set up for AFL-driven exploration.
+**128 tests** across five suites — core, AzureKeyVault, Aws, Redis, Testing — including combiner
+known-answer (KAT) tests, a parameter-set agility matrix, a future-version-rejection test, and a
+multi-replica rotation-lock concurrency proof. Coverage gate at ≥ 85% line / ≥ 75% branch.
+Property-based fuzz-lite contract tests drive 30 000 random inputs through both decoders on every
+run; a standalone SharpFuzz harness in `fuzz/` is set up for AFL-driven exploration.
 
 ## Requirements
 
@@ -295,14 +310,23 @@ drive 30 000 random inputs through both decoders on every run; a standalone Shar
 
 ## Project status
 
-`0.1.0-preview.4`. The API surface and the binary envelope wire format are versioned and
-backward-compatible across the preview series (every envelope written by `preview.1` decodes
-under `preview.4`). Pre-`1.0` the wire format may still change with a deliberate version bump
-and a `CHANGELOG.md` note. The path to `1.0` is mapped in [`future.md`](future.md).
+`1.0.0` — **first stable release.** The public API and the binary envelope/keypair formats are
+frozen at version 1 (decoders reject unknown versions and modes); SemVer is in force. Depends on the
+stable `PostQuantum.KeyManagement 1.0.0`.
 
-The two remaining gates on `1.0` are calendar-time, not code-time: third-party cryptographic
-review, and at least one cloud-backed key store in real production use. Both are tracked in
-[`KNOWN-GAPS.md` §D](KNOWN-GAPS.md#d-honest-gates-on-10).
+**Honest limitations carried into 1.0** (documented, not hidden — see
+[`KNOWN-GAPS.md` §D](KNOWN-GAPS.md#d-honest-limitations-carried-into-10)):
+
+- **Not yet independently audited.** Written with care, known-answer tests, fuzzing, a published
+  [threat model](docs/threat-model.md), and an auditable [crypto spec](docs/crypto-spec.md) — but no
+  third-party review yet. It's on the roadmap; weigh it against your own risk tolerance.
+- **Cloud stores not yet production-proven.** The Azure Key Vault / AWS / Redis stores are built and
+  tested, including a multi-replica rotation-lock concurrency proof, but haven't yet been run in a
+  named production deployment.
+
+Neither is a "post-quantum is incomplete" caveat — the cryptographic claim (ML-KEM + AES-256-GCM
+hybrid wrap of Data Protection keys at rest) is fully delivered. The roadmap is in
+[`future.md`](future.md).
 
 ## License
 

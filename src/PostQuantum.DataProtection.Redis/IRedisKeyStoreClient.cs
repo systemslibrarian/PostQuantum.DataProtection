@@ -24,4 +24,18 @@ public interface IRedisKeyStoreClient
 
     /// <summary>Deletes a single field from a hash. Returns true if a delete happened.</summary>
     ValueTask<bool> HashDeleteAsync(string key, string field, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Attempts to take a lease: sets <paramref name="key"/> to <paramref name="value"/> only if it
+    /// does not already exist, with an automatic expiry of <paramref name="expiry"/> (Redis
+    /// <c>SET key value NX PX</c>). Returns <see langword="true"/> if the lease was acquired.
+    /// </summary>
+    ValueTask<bool> LockTakeAsync(string key, string value, TimeSpan expiry, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Releases a lease previously taken by <see cref="LockTakeAsync"/>, but only if the current
+    /// value still equals <paramref name="value"/> (so a lease that already expired and was retaken
+    /// by another holder is not deleted). Returns <see langword="true"/> if this caller's lease was released.
+    /// </summary>
+    ValueTask<bool> LockReleaseAsync(string key, string value, CancellationToken cancellationToken);
 }

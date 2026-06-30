@@ -7,17 +7,19 @@ the design considerations we already know about.
 The principle: **do not break callers, do not regress the security story, ship things in real use
 before declaring `1.0`.**
 
-## The path to `1.0`
+## `1.0` — shipped
 
-`1.0` requires four things:
+**Status: `1.0.0` — first stable release.** Roadmap items 1–6 below all shipped (selectable
+parameter sets, Azure Key Vault / AWS / Redis stores, retention/pruning, the X-Wing combiner now the
+default, and the FIPS marker package), the wire format is frozen, SemVer is in force, and the
+dependency is the stable `PostQuantum.KeyManagement 1.0.0`.
 
-1. **Cloud-backed PQ key stores in real use.** At least one cloud store (Azure Key Vault first,
-   AWS KMS second) shipped, with a real customer running it, before the abstraction is locked.
-2. **External cryptographic review.** Gated behind (1) — reviewing a moving target wastes the
-   reviewer's time.
-3. **A documented retention / eviction policy** for old PQ keypairs in the keystore.
-4. **`net8.0` is still LTS.** If `net8.0` exits LTS before the above, `1.0` ships net9.0;net10.0
-   and the `net8.0` target stays at `0.x`.
+Two items earlier framed as GA blockers shipped as **documented limitations** instead (posture
+recorded in [`KNOWN-GAPS.md` §D](KNOWN-GAPS.md)) — they are post-1.0 work, not release blockers:
+
+1. **External cryptographic review** — the auditable target is [`docs/crypto-spec.md`](docs/crypto-spec.md).
+2. **Cloud-backed store proven in real production** — the stores ship and are tested (including a
+   multi-replica rotation-lock concurrency proof); a named production deployment is still wanted.
 
 ## Roadmap (priority-ordered)
 

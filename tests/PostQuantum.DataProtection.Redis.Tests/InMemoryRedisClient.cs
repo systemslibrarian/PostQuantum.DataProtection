@@ -50,4 +50,37 @@ public sealed class InMemoryRedisClient : IRedisKeyStoreClient
         }
         return new ValueTask<bool>(false);
     }
+
+    // Emulates Redis SET key value NX PX / value-checked release with TTL, atomically.
+    private readonly object _lockGate = new();
+    private readonly Dictionary<string, (string Token, long ExpiresAtTicks)> _locks = new(StringComparer.Ordinal);
+
+    public ValueTask<bool> LockTakeAsync(string key, string value, TimeSpan expiry, CancellationToken cancellationToken)
+    {
+        lock (_lockGate)
+        {
+            long nowTicks = DateTime.UtcNow.Ticks;
+            if (_locks.TryGetValue(key, out var existing) && existing.ExpiresAtTicks > nowTicks)
+            {
+                return new ValueTask<bool>(false);
+            }
+
+            _locks[key] = (value, nowTicks + expiry.Ticks);
+            return new ValueTask<bool>(true);
+        }
+    }
+
+    public ValueTask<bool> LockReleaseAsync(string key, string value, CancellationToken cancellationToken)
+    {
+        lock (_lockGate)
+        {
+            if (_locks.TryGetValue(key, out var existing) && string.Equals(existing.Token, value, StringComparison.Ordinal))
+            {
+                _locks.Remove(key);
+                return new ValueTask<bool>(true);
+            }
+
+            return new ValueTask<bool>(false);
+        }
+    }
 }

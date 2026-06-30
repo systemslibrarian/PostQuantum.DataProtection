@@ -3,7 +3,10 @@
 This is the precise statement of what `PostQuantum.DataProtection` writes to disk. Every binary
 choice is here; if the implementation drifts from this document, the document is the bug.
 
-Status as of **`0.1.0-preview.1`**. Two layouts are versioned and documented below:
+Status as of **`1.0.0`**. Both layouts below are **frozen at version 1 for 1.0** — see
+[KNOWN-GAPS.md §D3](../KNOWN-GAPS.md). For the cryptographic constructions (combiners, KDF/AEAD
+parameters, key-derivation labels, and the security properties), see the auditable
+[crypto specification](crypto-spec.md). Two layouts are versioned and documented below:
 
 1. [`HybridKemEnvelope`](#1-hybridkemenvelope) — the per-Data-Protection-key envelope embedded
    inside the `<pqEnvelope>` XML element ASP.NET Core writes under
@@ -26,8 +29,8 @@ Wire-format version: **1**.
 
 ```
 [FormatVersion : byte = 1]
-[Mode          : byte]                     // 0 = MlKemOnly, 1 = Hybrid
-[KemAlgorithm  : length-prefixed utf8]     // currently always "ML-KEM-768"
+[Mode          : byte]                     // 0 = MlKemOnly, 1 = Hybrid, 2 = XWingHybrid (default)
+[KemAlgorithm  : length-prefixed utf8]     // "ML-KEM-512" | "ML-KEM-768" | "ML-KEM-1024"
 [PublicKeyId   : length-prefixed utf8]     // the id of the long-lived PQ keypair this is encrypted to
 [KemCiphertext : length-prefixed bytes]    // ML-KEM-768 encapsulation output (1088 bytes)
 [ClassicalWrap : length-prefixed utf8]     // a WrappedContentKey.Encode() token; empty string in MlKemOnly

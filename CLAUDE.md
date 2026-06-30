@@ -43,9 +43,12 @@ Directory.Build.props                            # repo-wide build settings
 - **One envelope format, one parser.** Every encrypted XML element carries a single binary blob
   produced by `HybridKemEnvelope.Encode` and parsed by `HybridKemEnvelope.Decode`. Do not invent
   per-mode XML schemas — the mode is a byte inside the envelope.
-- **Hybrid by default.** `HybridKemMode.Hybrid` combines an ML-KEM-768 shared secret with the
-  classical `IContentKeyProvider` wrap via HKDF-SHA-256. `MlKemOnly` exists for testing and for
-  callers who explicitly opt out of the classical layer.
+- **Hybrid by default.** The default is `HybridKemMode.XWingHybrid` — SHA3-256 over the ML-KEM
+  ciphertext, ML-KEM shared secret, classical secret, and a domain label (it binds the ciphertext).
+  `HybridKemMode.Hybrid` (HKDF-SHA-256 over the ML-KEM + classical shared secrets) remains fully
+  supported. `MlKemOnly` exists for testing and for callers who explicitly opt out of the classical
+  layer. The mode is recorded per envelope, so changing the default is non-breaking. See
+  [`docs/crypto-spec.md`](docs/crypto-spec.md) for the exact constructions.
 - **`IContentKeyProvider` is the only thing the classical layer talks to.** Reuse its DEK +
   rotation discipline; do not re-implement key wrapping in this repo.
 - **The long-lived ML-KEM keypair is itself envelope-encrypted at rest.** The secret key is wrapped
@@ -81,8 +84,13 @@ Directory.Build.props                            # repo-wide build settings
 
 ## Versioning
 
-- Currently `0.1.0-preview.1`. Pre-`1.0` the API and the envelope wire-format may change; note
-  breaking changes in `PackageReleaseNotes`, `CHANGELOG.md`, and the README status section.
-- The envelope binary layout is versioned (`HybridKemEnvelope.FormatVersion`). If you change it,
-  bump that version, keep `Decode` able to read prior versions when feasible, and reject unknown
-  versions.
+- Currently `1.0.0` — first stable release. The public API and wire formats are **frozen**; SemVer
+  applies. Depends on the stable `PostQuantum.KeyManagement 1.0.0`. Two items ship as documented
+  limitations rather than blockers (see [`KNOWN-GAPS.md` §D](KNOWN-GAPS.md)): no third-party crypto
+  audit yet, and the cloud stores are tested but not yet production-proven. Post-1.0, breaking
+  changes are major-version bumps.
+- Note breaking changes in `PackageReleaseNotes`, `CHANGELOG.md`, and the README status section.
+- The envelope and keypair binary layouts are **frozen at version 1 for 1.0**
+  (`HybridKemEnvelope.CurrentFormatVersion`). If you must change either post-1.0, bump that version,
+  keep `Decode` able to read prior versions when feasible, reject unknown versions, and update
+  [`docs/crypto-spec.md`](docs/crypto-spec.md) and [`docs/wire-format.md`](docs/wire-format.md).

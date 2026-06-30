@@ -60,4 +60,16 @@ internal sealed class RedisDatabaseAdapter : IRedisKeyStoreClient
         cancellationToken.ThrowIfCancellationRequested();
         return await _db.HashDeleteAsync(key, field).ConfigureAwait(false);
     }
+
+    public async ValueTask<bool> LockTakeAsync(string key, string value, TimeSpan expiry, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _db.LockTakeAsync(key, value, expiry).ConfigureAwait(false);
+    }
+
+    public async ValueTask<bool> LockReleaseAsync(string key, string value, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _db.LockReleaseAsync(key, value).ConfigureAwait(false);
+    }
 }

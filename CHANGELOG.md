@@ -8,6 +8,50 @@ binary wire format may change in breaking ways across `0.x` minor versions. See
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-06-30
+
+**First stable release — code-complete and wire-format-frozen.** Depends on the stable
+`PostQuantum.KeyManagement 1.0.0`. Two items earlier framed as GA blockers ship as documented
+limitations rather than blockers (see [`KNOWN-GAPS.md` §D](KNOWN-GAPS.md)): no third-party
+cryptographic audit yet, and the cloud-backed stores are tested but not yet production-proven.
+
+### Changed (potentially breaking)
+
+- **Default `Mode` is now `HybridKemMode.XWingHybrid`** (was `Hybrid`). The X-Wing combiner binds
+  the ML-KEM ciphertext into the key derivation. Existing envelopes keep decrypting under whatever
+  mode they were written with; only fresh encryptions change. `Hybrid` remains fully supported.
+- **`RotationInterval` is now `TimeSpan?`** (was `TimeSpan`). `null` (the default) disables
+  scheduled rotation; a non-null value must be strictly positive — `TimeSpan.Zero` or a negative
+  value now throws at registration instead of silently disabling.
+
+### Added
+
+- **`AddPostQuantumDataProtection(...)`** on `IServiceCollection` — a one-call entry point mirroring
+  `AddDataProtection` (three overloads: `Action<options>`, path, `IConfigurationSection`).
+- **`ValidateOnStartup`** (default `true`) — eagerly initializes the chain at host startup via
+  `PostQuantumStartupValidator`, so a missing KEK / wrong passphrase / unwritable keystore fails
+  fast at boot with an actionable error.
+- **`IRotationLock`** abstraction with a default no-op (`NullRotationLock`) and a Redis `SET NX`
+  distributed lock (`RedisRotationLock`, registered by `AddPostQuantumDataProtectionRedis`) so
+  scheduled rotation is single-leader across replicas. Proven by a multi-replica concurrency test.
+- **`PostQuantum.DataProtection.Rotate`** trace activity (tags `pq.parameterSet`, `pq.newKeyId`).
+- **CLI** — `pq-dp keys list`, `pq-dp keys export`, `pq-dp doctor`, `pq-dp verify` (all read-only,
+  no secrets, no KEK required).
+- **Testing package** — `AddPostQuantumDataProtectionTesting(HybridKemMode)` overload,
+  `FakePostQuantumKeyStore.CorruptSecretKey` fail-closed injection, `DeleteAsync`/pruning support,
+  and `Count`/`KeyIds` introspection.
+- **Tests** — combiner known-answer (KAT) tests, a parameter-set agility matrix, a
+  future-version-rejection test, and a Redis rotation-lock concurrency proof.
+- **Docs** — [`docs/configuration.md`](docs/configuration.md),
+  [`docs/troubleshooting.md`](docs/troubleshooting.md),
+  [`docs/observability.md`](docs/observability.md), and the auditable
+  [`docs/crypto-spec.md`](docs/crypto-spec.md).
+
+### Frozen
+
+- Envelope and keypair-token wire formats are frozen at version 1 for 1.0; decoders reject unknown
+  versions and modes.
+
 ## [0.1.0-preview.5] — 2026-06-04
 
 **BCL ML-KEM on `net10.0` + AOT compatibility.** Backward-compatible.

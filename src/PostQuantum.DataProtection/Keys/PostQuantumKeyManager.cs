@@ -244,6 +244,10 @@ public sealed class PostQuantumKeyManager : IDisposable
 
     private async ValueTask<string> RotateCoreAsync(CancellationToken cancellationToken)
     {
+        using System.Diagnostics.Activity? activity =
+            Telemetry.ActivitySource.StartActivity("PostQuantum.DataProtection.Rotate", System.Diagnostics.ActivityKind.Internal);
+        activity?.SetTag("pq.parameterSet", MlKem.AlgorithmLabel(_parameterSet));
+
         (byte[] publicKey, byte[] privateKey) = MlKem.GenerateKeyPair(_parameterSet);
         try
         {
@@ -266,6 +270,7 @@ public sealed class PostQuantumKeyManager : IDisposable
                 _activeKeyId = pair.KeyId;
             }
 
+            activity?.SetTag("pq.newKeyId", pair.KeyId);
             Telemetry.Rotations.Add(1);
             LogRotated(_logger, pair.KeyId, null);
             return pair.KeyId;

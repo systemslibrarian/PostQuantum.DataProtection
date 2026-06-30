@@ -21,7 +21,7 @@
     <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="8.0.27" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="8.0.27" />
     <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.3" />
-    <PackageReference Include="PostQuantum.KeyManagement" Version="0.4.0-preview.2" />
+    <PackageReference Include="PostQuantum.KeyManagement" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>

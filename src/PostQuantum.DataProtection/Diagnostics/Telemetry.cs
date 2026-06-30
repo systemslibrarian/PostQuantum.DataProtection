@@ -24,6 +24,12 @@ namespace PostQuantum.DataProtection.Diagnostics;
 ///   <item><description><c>pq_dataprotection.encrypt.duration</c> — milliseconds per envelope encryption.</description></item>
 ///   <item><description><c>pq_dataprotection.decrypt.duration</c> — milliseconds per envelope decryption.</description></item>
 /// </list>
+/// <para><b>Activities</b> (the <see cref="ActivitySource"/> shares the meter name)</para>
+/// <list type="bullet">
+///   <item><description><c>PostQuantum.DataProtection.Encrypt</c> — tags <c>pq.mode</c>, <c>pq.publicKeyId</c>.</description></item>
+///   <item><description><c>PostQuantum.DataProtection.Decrypt</c> — tags <c>pq.mode</c> (on the failure path).</description></item>
+///   <item><description><c>PostQuantum.DataProtection.Rotate</c> — tags <c>pq.parameterSet</c>, <c>pq.newKeyId</c>.</description></item>
+/// </list>
 /// <para>
 /// Names use dot-separated identifiers per the OpenTelemetry naming conventions; OTel exporters
 /// translate them to the target system's convention (Prometheus underscores, etc.).

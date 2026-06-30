@@ -50,8 +50,20 @@ public static class PostQuantumDataProtectionBuilderExtensions
                 "See docs/deployment.md §2 (pre-deployment checklist) for the production posture.");
         }
 
+        if (snapshot.RotationInterval is { } interval && interval <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException(
+                "PostQuantumDataProtectionOptions.RotationInterval must be strictly positive when set " +
+                $"(was {interval}). To disable scheduled rotation, leave RotationInterval null rather than " +
+                "setting it to zero or a negative value. A typical production value is TimeSpan.FromDays(90).");
+        }
+
         builder.Services.AddOptions<PostQuantumDataProtectionOptions>().Configure(configure);
         builder.Services.TryAddSingleton<IPostQuantumKeyStore>(_ => new FilePostQuantumKeyStore(snapshot.KeyStorePath!));
+
+        // Single-writer rotation by default. A satellite package (e.g. Redis) replaces this with a
+        // distributed lock so only one replica rotates per window in a multi-replica deployment.
+        builder.Services.TryAddSingleton<IRotationLock>(NullRotationLock.Instance);
         builder.Services.TryAddSingleton<PostQuantumKeyManager>(static sp =>
         {
             IContentKeyProvider contentKeys = sp.GetRequiredService<IContentKeyProvider>();
@@ -68,9 +80,13 @@ public static class PostQuantumDataProtectionBuilderExtensions
         // as a DI service — that would force ASP.NET Core's strict-DI validator to inspect both
         // constructors and fail on "ambiguous". The activator pattern does not need it.
 
-        // Register the scheduled-rotation hosted service when an interval is set. The service
-        // self-disables at runtime if RotationInterval == TimeSpan.Zero, so the registration is
-        // always safe regardless of config.
+        // Eagerly initialize the chain at startup (fail fast on misconfiguration) unless the caller
+        // opted out via ValidateOnStartup = false. Registered before the rotation service so the
+        // boot-time check runs first.
+        builder.Services.AddHostedService<PostQuantumStartupValidator>();
+
+        // Register the scheduled-rotation hosted service. The service self-disables at runtime when
+        // RotationInterval is null, so the registration is always safe regardless of config.
         builder.Services.AddHostedService<PostQuantumRotationHostedService>();
 
         // Wire the encryptor onto Data Protection's key-management options. The XmlEncryptor
@@ -123,6 +139,60 @@ public static class PostQuantumDataProtectionBuilderExtensions
         }
 
         return builder.ProtectKeysWithPostQuantum(section.Bind);
+    }
+}
+
+/// <summary>
+/// <see cref="IServiceCollection"/> entry points that add ASP.NET Core Data Protection and protect
+/// its persisted keys with a post-quantum / hybrid envelope in one call — the discoverable mirror of
+/// <see cref="DataProtectionServiceCollectionExtensions.AddDataProtection(IServiceCollection)"/>.
+/// </summary>
+/// <remarks>
+/// These methods call <c>AddDataProtection()</c> for you and then
+/// <c>ProtectKeysWithPostQuantum(...)</c>. They still require <see cref="IContentKeyProvider"/> to be
+/// registered (call <c>AddPostQuantumKeyManagement(...)</c> from
+/// <c>PostQuantum.KeyManagement.Extensions.DependencyInjection</c>); the returned
+/// <see cref="IDataProtectionBuilder"/> can be chained further (e.g. <c>.PersistKeysToFileSystem(...)</c>).
+/// </remarks>
+public static class PostQuantumDataProtectionServiceCollectionExtensions
+{
+    /// <summary>
+    /// Adds Data Protection and protects its persisted keys with an ML-KEM + AES-256-GCM hybrid
+    /// envelope. Convenience for <c>services.AddDataProtection().ProtectKeysWithPostQuantum(configure)</c>.
+    /// </summary>
+    public static IDataProtectionBuilder AddPostQuantumDataProtection(
+        this IServiceCollection services,
+        Action<PostQuantumDataProtectionOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configure);
+        return services.AddDataProtection().ProtectKeysWithPostQuantum(configure);
+    }
+
+    /// <summary>
+    /// Adds Data Protection and protects its persisted keys, taking just the keystore file path.
+    /// Convenience for <c>services.AddDataProtection().ProtectKeysWithPostQuantum(keyStorePath)</c>.
+    /// </summary>
+    public static IDataProtectionBuilder AddPostQuantumDataProtection(this IServiceCollection services, string keyStorePath)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        return services.AddDataProtection().ProtectKeysWithPostQuantum(keyStorePath);
+    }
+
+    /// <summary>
+    /// Adds Data Protection and protects its persisted keys, binding options from a configuration
+    /// section. Convenience for <c>services.AddDataProtection().ProtectKeysWithPostQuantum(section)</c>.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.RequiresUnreferencedCode(
+        "Binding PostQuantumDataProtectionOptions from IConfigurationSection uses reflection and is not trim-safe. " +
+        "Use the Action<PostQuantumDataProtectionOptions> overload instead.")]
+    [System.Diagnostics.CodeAnalysis.RequiresDynamicCode(
+        "Binding PostQuantumDataProtectionOptions from IConfigurationSection requires dynamic code and is not AOT-safe. " +
+        "Use the Action<PostQuantumDataProtectionOptions> overload instead.")]
+    public static IDataProtectionBuilder AddPostQuantumDataProtection(this IServiceCollection services, IConfigurationSection section)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        return services.AddDataProtection().ProtectKeysWithPostQuantum(section);
     }
 }
 

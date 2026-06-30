@@ -46,7 +46,7 @@ public sealed class PostQuantumXmlEncryptor : IXmlEncryptor
     public const string XmlElementName = "pqEnvelope";
 
     /// <summary>Creates an encryptor that targets the active keypair of <paramref name="pqKeys"/>.</summary>
-    public PostQuantumXmlEncryptor(PostQuantumKeyManager pqKeys, IContentKeyProvider contentKeys, HybridKemMode mode = HybridKemMode.Hybrid, ILogger<PostQuantumXmlEncryptor>? logger = null)
+    public PostQuantumXmlEncryptor(PostQuantumKeyManager pqKeys, IContentKeyProvider contentKeys, HybridKemMode mode = HybridKemMode.XWingHybrid, ILogger<PostQuantumXmlEncryptor>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(pqKeys);
         ArgumentNullException.ThrowIfNull(contentKeys);

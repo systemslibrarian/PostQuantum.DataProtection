@@ -16,8 +16,8 @@ namespace PostQuantum.DataProtection.Hybrid;
 /// </para>
 /// <code>
 /// [FormatVersion : byte = 1]
-/// [Mode          : byte]                     // 0 = MlKemOnly, 1 = Hybrid
-/// [KemAlgorithm  : length-prefixed utf8]     // "ML-KEM-768"
+/// [Mode          : byte]                     // 0 = MlKemOnly, 1 = Hybrid, 2 = XWingHybrid
+/// [KemAlgorithm  : length-prefixed utf8]     // "ML-KEM-512" | "ML-KEM-768" | "ML-KEM-1024"
 /// [PublicKeyId   : length-prefixed utf8]     // id of the long-lived PQ keypair this was encrypted to
 /// [KemCiphertext : length-prefixed bytes]    // ML-KEM-768 encapsulation output (1088 bytes)
 /// [ClassicalWrap : length-prefixed utf8]     // WrappedContentKey.Encode() token; empty in MlKemOnly
@@ -47,10 +47,10 @@ public sealed record HybridKemEnvelope
     /// <summary>The envelope format version this instance was decoded from (or will encode as).</summary>
     public byte FormatVersion { get; init; } = CurrentFormatVersion;
 
-    /// <summary>The KEM derivation mode (<see cref="HybridKemMode.Hybrid"/> or <see cref="HybridKemMode.MlKemOnly"/>).</summary>
+    /// <summary>The KEM derivation mode (<see cref="HybridKemMode.XWingHybrid"/>, <see cref="HybridKemMode.Hybrid"/>, or <see cref="HybridKemMode.MlKemOnly"/>).</summary>
     public required HybridKemMode Mode { get; init; }
 
-    /// <summary>The KEM algorithm label recorded on the envelope (currently always <c>"ML-KEM-768"</c>).</summary>
+    /// <summary>The ML-KEM parameter-set label recorded on the envelope (<c>"ML-KEM-512"</c>, <c>"ML-KEM-768"</c>, or <c>"ML-KEM-1024"</c>).</summary>
     public required string KemAlgorithm { get; init; }
 
     /// <summary>The identifier of the long-lived PQ keypair this envelope was encrypted to.</summary>
