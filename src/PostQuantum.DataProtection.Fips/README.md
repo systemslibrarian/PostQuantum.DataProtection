@@ -5,7 +5,7 @@
 Deployment guidance + declarative tripwire for running `PostQuantum.DataProtection` under
 FIPS 140-3 compliance regimes.
 
-> ⚠️ **Preview (`0.1.0-preview.6`).**
+> **Stable (`1.0.1`).**
 
 ## What this package is
 

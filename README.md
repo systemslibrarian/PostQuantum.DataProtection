@@ -24,7 +24,7 @@ That's it.
 
 ## What you get
 
-Six packages, one CLI, four end-to-end samples. Mix and match.
+Seven packages, one CLI, four end-to-end samples. Mix and match.
 
 | Package | Purpose |
 |---|---|
@@ -34,6 +34,7 @@ Six packages, one CLI, four end-to-end samples. Mix and match.
 | **`PostQuantum.DataProtection.Redis`** | `IPostQuantumKeyStore` backed by Redis. Natural pair with `PersistKeysToStackExchangeRedis`. |
 | **`PostQuantum.DataProtection.OpenTelemetry`** | One-line OTel wiring. `.AddPostQuantumDataProtectionInstrumentation()` on a `MeterProviderBuilder` / `TracerProviderBuilder`. |
 | **`PostQuantum.DataProtection.Testing`** | `FakePostQuantumKeyStore` + `AddPostQuantumDataProtectionTesting()` for consumer unit tests — no cloud, no disk. |
+| **`PostQuantum.DataProtection.Fips`** | Deployment guidance + declarative tripwire for running under FIPS 140-3. Ships `FipsDeploymentMarker` to commit the process to a FIPS-only posture and fail fast when the active provider isn't validated. Not a FIPS-validated ML-KEM implementation — you bring the validated provider. |
 | **`PostQuantum.DataProtection.Cli`** (`pq-dp`) | `dotnet tool` for inspecting persisted DP key XML files. No secrets emitted. |
 
 Samples:
@@ -297,7 +298,8 @@ dotnet build PostQuantum.DataProtection.slnx -c Release
 dotnet test PostQuantum.DataProtection.slnx -c Release --no-build
 ```
 
-**128 tests** across five suites — core, AzureKeyVault, Aws, Redis, Testing — including combiner
+**131 tests** across five suites — core (including the FIPS deployment-marker tripwire tests),
+AzureKeyVault, Aws, Redis, Testing — including combiner
 known-answer (KAT) tests, a parameter-set agility matrix, a future-version-rejection test, and a
 multi-replica rotation-lock concurrency proof. Coverage gate at ≥ 85% line / ≥ 75% branch.
 Property-based fuzz-lite contract tests drive 30 000 random inputs through both decoders on every
@@ -310,7 +312,7 @@ run; a standalone SharpFuzz harness in `fuzz/` is set up for AFL-driven explorat
 
 ## Project status
 
-`1.0.0` — **first stable release.** The public API and the binary envelope/keypair formats are
+`1.0.1` — **stable release.** The public API and the binary envelope/keypair formats are
 frozen at version 1 (decoders reject unknown versions and modes); SemVer is in force. Depends on the
 stable `PostQuantum.KeyManagement 1.0.0`.
 
