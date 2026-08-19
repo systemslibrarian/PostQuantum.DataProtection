@@ -93,8 +93,11 @@ jobs:
           # omits the Skipped line entirely when nothing skipped -- not the older
           # one-line "Passed!  - Failed: 0, Skipped: 0, ...". Parse both shapes, and
           # require a Passed count so an empty or crashed run cannot pass silently.
-          passed=$(grep -oE 'Passed:[[:space:]]*[0-9]+' test-output.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
-          skipped=$(grep -oE 'Skipped:[[:space:]]*[0-9]+' test-output.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+          # `|| true` matters: with no skips there is no "Skipped:" line at all, so grep
+          # exits 1, pipefail propagates it and set -e kills the step -- the gate would
+          # fail exactly when it should pass.
+          passed=$(grep -oE 'Passed:[[:space:]]*[0-9]+' test-output.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)
+          skipped=$(grep -oE 'Skipped:[[:space:]]*[0-9]+' test-output.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)
           echo "passed=$passed skipped=$skipped"
           if [[ "${passed:-0}" -eq 0 ]]; then
             echo "::error::No passing tests found in the log — the suite did not run."
