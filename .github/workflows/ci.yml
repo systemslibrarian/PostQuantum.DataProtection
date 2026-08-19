@@ -32,18 +32,88 @@ jobs:
             9.0.x
             10.0.x
 
+      - name: Set up miniconda (Linux — ML-KEM needs OpenSSL 3.5+)
+        if: matrix.os == 'ubuntu-latest'
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          auto-update-conda: false
+          activate-environment: pq
+          channels: conda-forge
+
+      - name: Install OpenSSL 3.5+ from conda-forge
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash -el {0}
+        run: |
+          conda install -y -n pq -c conda-forge "openssl>=3.5,<4"
+          "$CONDA/envs/pq/bin/openssl" version
+          echo "PQ_OPENSSL_LIB=$CONDA/envs/pq/lib" >> "$GITHUB_ENV"
+
+      - name: Probe ML-KEM availability
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pqprobe && cd /tmp/pqprobe
+          cat > pqprobe.cs <<'EOF'
+          using System.Security.Cryptography;
+          Console.WriteLine($"MLKem.IsSupported = {MLKem.IsSupported}");
+          EOF
+          LD_LIBRARY_PATH="$PQ_OPENSSL_LIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" dotnet run pqprobe.cs
+
       - name: Restore
         run: dotnet restore PostQuantum.DataProtection.slnx
 
       - name: Build (Release, all targets, zero warnings)
         run: dotnet build PostQuantum.DataProtection.slnx -c Release --no-restore
 
+      # LD_LIBRARY_PATH points the runtime at the conda OpenSSL 3.5+ on Linux so the
+      # ML-KEM tests actually execute rather than skipping. PQ_OPENSSL_LIB is only set
+      # on the Linux leg; on Windows and macOS this expands to nothing and the runner's
+      # native primitives are used.
       - name: Test
-        run: dotnet test tests/PostQuantum.DataProtection.Tests/PostQuantum.DataProtection.Tests.csproj -c Release --no-build --logger "console;verbosity=normal"
+        shell: bash
+        run: |
+          set -o pipefail
+          if [[ -n "${PQ_OPENSSL_LIB:-}" ]]; then
+            export LD_LIBRARY_PATH="$PQ_OPENSSL_LIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          fi
+          dotnet test tests/PostQuantum.DataProtection.Tests/PostQuantum.DataProtection.Tests.csproj \
+            -c Release --no-build --logger "console;verbosity=normal" | tee test-output.log
+
+      # A PqcFact skip is correct where the primitive genuinely cannot exist, but a
+      # silently-skipped crypto suite is indistinguishable from a passing one. Linux and
+      # Windows are the PQ-required lanes: if anything skipped there, the ML-KEM paths
+      # were not proven and the job must fail.
+      - name: Require zero skipped tests on the PQ-required lanes
+        if: matrix.os != 'macos-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This SDK prints an indented per-project summary ("     Passed: 108") and
+          # omits the Skipped line entirely when nothing skipped -- not the older
+          # one-line "Passed!  - Failed: 0, Skipped: 0, ...". Parse both shapes, and
+          # require a Passed count so an empty or crashed run cannot pass silently.
+          # `|| true` matters: with no skips there is no "Skipped:" line at all, so grep
+          # exits 1, pipefail propagates it and set -e kills the step -- the gate would
+          # fail exactly when it should pass.
+          passed=$(grep -oE 'Passed:[[:space:]]*[0-9]+' test-output.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)
+          skipped=$(grep -oE 'Skipped:[[:space:]]*[0-9]+' test-output.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)
+          echo "passed=$passed skipped=$skipped"
+          if [[ "${passed:-0}" -eq 0 ]]; then
+            echo "::error::No passing tests found in the log — the suite did not run."
+            exit 1
+          fi
+          if [[ "${skipped:-0}" -ne 0 ]]; then
+            echo "::error::$skipped test(s) skipped on a PQ-required lane — ML-KEM was unavailable to the runner."
+            exit 1
+          fi
+          echo "PQ-required check passed: $passed passed, 0 skipped."
 
       - name: Test with coverage (Linux only)
         if: matrix.os == 'ubuntu-latest'
+        shell: bash
         run: |
+          export LD_LIBRARY_PATH="$PQ_OPENSSL_LIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           rm -rf artifacts/coverage
           dotnet test tests/PostQuantum.DataProtection.Tests/PostQuantum.DataProtection.Tests.csproj \
             -c Release --no-build \

@@ -10,7 +10,7 @@ namespace PostQuantum.DataProtection.Tests;
 
 public sealed class TelemetryTests
 {
-    [Fact]
+    [PqcFact]
     public async Task Encrypt_emits_encryption_counter_and_duration_histogram()
     {
         long encryptionCount = 0;
@@ -65,7 +65,7 @@ public sealed class TelemetryTests
         Assert.True(sawEncryptDuration);
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Decrypt_emits_decryption_counter()
     {
         long decryptionCount = 0;
@@ -109,7 +109,7 @@ public sealed class TelemetryTests
         Assert.True(decryptionCount >= 1, $"Expected ≥ 1 decryption event; saw {decryptionCount}.");
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Rotation_emits_rotation_counter()
     {
         long rotationCount = 0;

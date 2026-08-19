@@ -14,7 +14,7 @@ namespace PostQuantum.DataProtection.Tests;
 /// </summary>
 public sealed class CloudStoreConcurrencyTests
 {
-    [Fact]
+    [PqcFact]
     public async Task File_store_under_concurrent_load_serves_consistent_active_id()
     {
         const int threads = 32;
@@ -52,7 +52,7 @@ public sealed class CloudStoreConcurrencyTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Parallel_rotations_serialise_correctly_and_grow_the_keyring_monotonically()
     {
         const int rotators = 8;
@@ -97,7 +97,7 @@ public sealed class CloudStoreConcurrencyTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task PruneAsync_under_concurrent_rotations_never_deletes_the_active_keypair()
     {
         string tempDir = TestDefaults.CreateTempDirectory();

@@ -6,7 +6,7 @@ namespace PostQuantum.DataProtection.Tests;
 
 public sealed class MlKemTests
 {
-    [Fact]
+    [PqcFact]
     public void GenerateKeyPair_produces_keys_with_FIPS_203_sizes()
     {
         (byte[] pk, byte[] sk) = MlKem.GenerateKeyPair();
@@ -17,7 +17,7 @@ public sealed class MlKemTests
         Assert.Equal(2400, sk.Length);
     }
 
-    [Fact]
+    [PqcFact]
     public void Encapsulate_and_Decapsulate_recover_the_same_shared_secret()
     {
         (byte[] pk, byte[] sk) = MlKem.GenerateKeyPair();
@@ -31,7 +31,7 @@ public sealed class MlKemTests
         Assert.Equal(sharedSecret, recovered);
     }
 
-    [Fact]
+    [PqcFact]
     public void Decapsulate_with_a_different_secret_key_yields_a_different_shared_secret()
     {
         // ML-KEM is IND-CCA2: decapsulating against the "wrong" SK does not throw, it just yields
@@ -54,7 +54,7 @@ public sealed class MlKemTests
         Assert.Throws<ArgumentException>(() => MlKem.Encapsulate(tooShort));
     }
 
-    [Fact]
+    [PqcFact]
     public void Decapsulate_rejects_wrong_size_private_key_and_ciphertext()
     {
         (byte[] pk, byte[] sk) = MlKem.GenerateKeyPair();
@@ -64,7 +64,7 @@ public sealed class MlKemTests
         Assert.Throws<ArgumentException>(() => MlKem.Decapsulate(sk, new byte[10]));
     }
 
-    [Fact]
+    [PqcFact]
     public void Two_encapsulations_against_the_same_public_key_produce_different_outputs()
     {
         (byte[] pk, byte[] _) = MlKem.GenerateKeyPair();

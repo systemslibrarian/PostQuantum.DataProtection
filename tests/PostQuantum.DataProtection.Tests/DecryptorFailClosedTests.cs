@@ -19,7 +19,7 @@ public sealed class DecryptorFailClosedTests
     private static XElement Wrap(string payload) =>
         new(XName.Get(PostQuantumXmlEncryptor.XmlElementName, PostQuantumXmlEncryptor.XmlNamespace), payload);
 
-    [Theory]
+    [PqcTheory]
     [InlineData("!!! not base64url !!!")]
     [InlineData("AAAA")] // decodes to bytes but is a truncated/invalid envelope
     public async Task Malformed_token_fails_closed_as_CryptographicException(string garbage)
@@ -43,7 +43,7 @@ public sealed class DecryptorFailClosedTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Wrong_sized_kem_ciphertext_fails_closed_as_CryptographicException()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();

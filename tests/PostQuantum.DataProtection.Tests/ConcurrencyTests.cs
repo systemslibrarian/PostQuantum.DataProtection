@@ -14,7 +14,7 @@ namespace PostQuantum.DataProtection.Tests;
 /// </summary>
 public sealed class ConcurrencyTests
 {
-    [Fact]
+    [PqcFact]
     public async Task Many_threads_can_encrypt_and_decrypt_against_one_key_manager()
     {
         const int threadCount = 16;
@@ -76,7 +76,7 @@ public sealed class ConcurrencyTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Encryptions_concurrent_with_rotations_all_succeed_and_remain_decryptable()
     {
         // Tests the load-bearing claim: a rotation in flight does not break or corrupt an
@@ -166,7 +166,7 @@ public sealed class ConcurrencyTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task First_run_under_concurrent_load_creates_exactly_one_keypair()
     {
         // The first GetActiveKeyIdAsync triggers EnsureLoadedAsync -> RotateCoreAsync. If multiple

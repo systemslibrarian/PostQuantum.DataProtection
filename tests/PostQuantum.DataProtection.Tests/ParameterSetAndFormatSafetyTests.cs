@@ -14,7 +14,7 @@ namespace PostQuantum.DataProtection.Tests;
 /// </summary>
 public sealed class ParameterSetAndFormatSafetyTests
 {
-    [Theory]
+    [PqcTheory]
     [InlineData(MlKemParameterSet.Kem512, "pq-mlkem512-")]
     [InlineData(MlKemParameterSet.Kem768, "pq-mlkem768-")]
     [InlineData(MlKemParameterSet.Kem1024, "pq-mlkem1024-")]

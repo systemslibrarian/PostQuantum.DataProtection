@@ -6,7 +6,7 @@ namespace PostQuantum.DataProtection.Tests;
 
 public sealed class PruneTests
 {
-    [Fact]
+    [PqcFact]
     public async Task PruneOlderThanAsync_removes_old_inactive_keypairs_only()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();
@@ -38,7 +38,7 @@ public sealed class PruneTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task DeleteAsync_on_active_keypair_throws_clear_error()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();
