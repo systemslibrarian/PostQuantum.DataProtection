@@ -80,11 +80,14 @@
 
     <!--
       Microsoft.AspNetCore.DataProtection.Extensions transitively brings in
-      System.Security.Cryptography.Xml. The 8.0.x line pre-8.0.3 carries published high-severity
-      advisories (GHSA-37gx-xxp4-5rgx, GHSA-w3x6-4m5h-cxqf); we pin to the latest patched 8.0.x
-      explicitly so a transitive resolution cannot land on the unpatched version under any nuget.
+      System.Security.Cryptography.Xml. The 8.0.x line through 8.0.3 carries published
+      high-severity advisories (GHSA-23rf-6693-g89p, GHSA-8q5v-6pqq-x66h, GHSA-cvvh-rhrc-wg4q,
+      GHSA-g8r8-53c2-pm3f, GHSA-mmjf-rqrv-855v), all first patched in 8.0.4; earlier ones
+      (GHSA-37gx-xxp4-5rgx, GHSA-w3x6-4m5h-cxqf) were patched in 8.0.3. We pin to the latest
+      patched 8.0.x explicitly so a transitive resolution cannot land on an unpatched version
+      under any nuget.
     -->
-    <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.3" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.4" />
   </ItemGroup>
 
 </Project>
