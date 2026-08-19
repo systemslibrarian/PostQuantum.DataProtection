@@ -89,22 +89,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          summaries=$(grep -E '^(Passed!|Failed!)' test-output.log || true)
-          if [[ -z "$summaries" ]]; then
-            echo "::error::Could not locate a dotnet test summary line."
+          # This SDK prints an indented per-project summary ("     Passed: 108") and
+          # omits the Skipped line entirely when nothing skipped -- not the older
+          # one-line "Passed!  - Failed: 0, Skipped: 0, ...". Parse both shapes, and
+          # require a Passed count so an empty or crashed run cannot pass silently.
+          passed=$(grep -oE 'Passed:[[:space:]]*[0-9]+' test-output.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+          skipped=$(grep -oE 'Skipped:[[:space:]]*[0-9]+' test-output.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+          echo "passed=$passed skipped=$skipped"
+          if [[ "${passed:-0}" -eq 0 ]]; then
+            echo "::error::No passing tests found in the log — the suite did not run."
             exit 1
           fi
-          echo "$summaries"
-          total=0
-          while IFS= read -r line; do
-            s=$(echo "$line" | grep -oE 'Skipped:[[:space:]]*[0-9]+' | grep -oE '[0-9]+' | tail -1)
-            total=$((total + ${s:-0}))
-          done <<< "$summaries"
-          if [[ "$total" -ne 0 ]]; then
-            echo "::error::$total test(s) skipped on a PQ-required lane — ML-KEM was unavailable to the runner."
+          if [[ "${skipped:-0}" -ne 0 ]]; then
+            echo "::error::$skipped test(s) skipped on a PQ-required lane — ML-KEM was unavailable to the runner."
             exit 1
           fi
-          echo "PQ-required check passed: 0 skipped."
+          echo "PQ-required check passed: $passed passed, 0 skipped."
 
       - name: Test with coverage (Linux only)
         if: matrix.os == 'ubuntu-latest'
