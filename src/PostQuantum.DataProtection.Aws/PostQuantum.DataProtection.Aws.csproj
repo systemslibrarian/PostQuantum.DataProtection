@@ -43,7 +43,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../PostQuantum.DataProtection/PostQuantum.DataProtection.csproj" />
-    <PackageReference Include="AWSSDK.SecretsManager" Version="4.0.5" />
+    <PackageReference Include="AWSSDK.SecretsManager" Version="4.0.100.2" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 
