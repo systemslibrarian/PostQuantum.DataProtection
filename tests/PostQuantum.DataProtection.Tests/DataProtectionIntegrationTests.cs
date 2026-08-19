@@ -13,7 +13,7 @@ namespace PostQuantum.DataProtection.Tests;
 /// </summary>
 public sealed class DataProtectionIntegrationTests
 {
-    [Fact]
+    [PqcFact]
     public void Protect_then_Unprotect_round_trips_through_ASP_NET_Core_Data_Protection()
     {
         string tempDir = TestDefaults.CreateTempDirectory();
@@ -46,7 +46,7 @@ public sealed class DataProtectionIntegrationTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public void Persisted_DP_key_file_contains_a_pqEnvelope_element()
     {
         string tempDir = TestDefaults.CreateTempDirectory();

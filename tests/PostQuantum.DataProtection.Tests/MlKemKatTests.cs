@@ -33,7 +33,7 @@ public sealed class MlKemKatTests
         0x50, 0x72, 0x6f, 0x74, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x20, 0x4b, 0x41, 0x54, 0x20, 0x32,
     ];
 
-    [Fact]
+    [PqcFact]
     public void Same_seed_yields_the_same_private_key_bytes()
     {
         (byte[] _, byte[] a) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
@@ -43,7 +43,7 @@ public sealed class MlKemKatTests
         Assert.Equal(a, b);
     }
 
-    [Fact]
+    [PqcFact]
     public void Same_seed_yields_the_same_public_key_bytes()
     {
         (byte[] aPk, byte[] _) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
@@ -53,7 +53,7 @@ public sealed class MlKemKatTests
         Assert.Equal(aPk, bPk);
     }
 
-    [Fact]
+    [PqcFact]
     public void Seeded_keypair_supports_encapsulate_decapsulate_roundtrip()
     {
         (byte[] pk, byte[] sk) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
@@ -66,7 +66,7 @@ public sealed class MlKemKatTests
         Assert.Equal(sentSecret, recovered);
     }
 
-    [Fact]
+    [PqcFact]
     public void Seeded_keypair_public_key_hash_is_pinned()
     {
         // Pins the public-key byte encoding via its SHA-256. Same value across BC (net8/9) and BCL
@@ -80,7 +80,7 @@ public sealed class MlKemKatTests
         Assert.Equal(ExpectedHash.PublicKeySha256, actual);
     }
 
-    [Fact]
+    [PqcFact]
     public void Seeded_keypair_private_key_hash_is_pinned()
     {
         (byte[] _, byte[] sk) = MlKem.GenerateKeyPairFromSeed(MlKemParameterSet.Kem768, PinnedSeed);
@@ -90,7 +90,7 @@ public sealed class MlKemKatTests
         Assert.Equal(ExpectedHash.PrivateKeySha256, actual);
     }
 
-    [Fact]
+    [PqcFact]
     public void Two_different_seeds_yield_different_public_keys()
     {
         byte[] otherSeed = (byte[])PinnedSeed.Clone();

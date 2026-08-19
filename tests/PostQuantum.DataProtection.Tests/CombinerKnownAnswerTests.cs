@@ -50,7 +50,7 @@ public sealed class CombinerKnownAnswerTests
         Assert.Equal(expected, actual);
     }
 
-    [Fact]
+    [PqcFact]
     public void XWingHybrid_matches_spec_and_binds_ciphertext()
     {
         byte[] actual = HybridCombiner.DeriveXWingHybrid(MlKemSharedSecret(), ClassicalSharedSecret(), MlKemCiphertext(), Salt());
@@ -74,7 +74,7 @@ public sealed class CombinerKnownAnswerTests
         Assert.NotEqual(actual, withOtherCt);
     }
 
-    [Fact]
+    [PqcFact]
     public void The_three_modes_derive_distinct_keys_from_identical_secrets()
     {
         // Domain separation: same shared secrets, different mode → different derived key.

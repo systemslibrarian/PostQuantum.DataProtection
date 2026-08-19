@@ -8,7 +8,7 @@ namespace PostQuantum.DataProtection.Tests;
 
 public sealed class RoundtripTests
 {
-    [Theory]
+    [PqcTheory]
     [InlineData(HybridKemMode.Hybrid)]
     [InlineData(HybridKemMode.MlKemOnly)]
     [InlineData(HybridKemMode.XWingHybrid)]
@@ -40,7 +40,7 @@ public sealed class RoundtripTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Two_encryptions_of_the_same_input_produce_different_envelopes()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();
@@ -65,7 +65,7 @@ public sealed class RoundtripTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task EncryptedElement_uses_pinned_xml_namespace_and_element_name()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();
@@ -89,7 +89,7 @@ public sealed class RoundtripTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task EncryptedXmlInfo_names_the_PostQuantumXmlDecryptor_type()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();

@@ -8,7 +8,7 @@ namespace PostQuantum.DataProtection.Tests;
 
 public sealed class ParameterSetTests
 {
-    [Theory]
+    [PqcTheory]
     [InlineData(MlKemParameterSet.Kem512)]
     [InlineData(MlKemParameterSet.Kem768)]
     [InlineData(MlKemParameterSet.Kem1024)]
@@ -39,7 +39,7 @@ public sealed class ParameterSetTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task A_keypair_minted_under_kem512_still_decrypts_after_switching_to_kem1024()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();

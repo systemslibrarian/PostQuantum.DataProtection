@@ -44,7 +44,7 @@ public sealed class AcvpKatTests
 
     private static byte[] Hex(string s) => Convert.FromHexString(s);
 
-    [Fact]
+    [PqcFact]
     public void Keygen_from_d_concat_z_matches_NIST_public_key()
     {
         // FIPS 203 ML-KEM.KeyGen uses d (32 bytes) for K-PKE.KeyGen and concatenates z (32 bytes)
@@ -60,7 +60,7 @@ public sealed class AcvpKatTests
         Assert.Equal(expectedPk, derivedPk);
     }
 
-    [Fact]
+    [PqcFact]
     public void Keygen_from_d_concat_z_matches_NIST_secret_key()
     {
         byte[] seed = [.. Hex(D_Hex), .. Hex(Z_Hex)];
@@ -72,7 +72,7 @@ public sealed class AcvpKatTests
         Assert.Equal(expectedSk, derivedSk);
     }
 
-    [Fact]
+    [PqcFact]
     public void Decapsulate_against_NIST_ciphertext_recovers_NIST_shared_secret()
     {
         // This is the load-bearing KAT: independent of our keygen, given the NIST sk and ct,

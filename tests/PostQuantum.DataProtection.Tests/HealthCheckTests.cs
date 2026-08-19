@@ -11,7 +11,7 @@ namespace PostQuantum.DataProtection.Tests;
 
 public sealed class HealthCheckTests
 {
-    [Fact]
+    [PqcFact]
     public async Task Returns_healthy_when_roundtrip_succeeds()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();
@@ -34,7 +34,7 @@ public sealed class HealthCheckTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task AddPostQuantumDataProtection_registers_the_check_in_the_DI_container()
     {
         var services = new ServiceCollection();

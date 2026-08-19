@@ -7,7 +7,7 @@ namespace PostQuantum.DataProtection.Tests;
 
 public sealed class FilePostQuantumKeyStoreTests
 {
-    [Fact]
+    [PqcFact]
     public async Task First_run_creates_keystore_with_a_fresh_keypair()
     {
         string tempDir = TestDefaults.CreateTempDirectory();
@@ -31,7 +31,7 @@ public sealed class FilePostQuantumKeyStoreTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task The_raw_keystore_file_contains_no_plaintext_ml_kem_secret_key()
     {
         // We cannot inspect the SK directly without unwrapping. The check we can make is that
@@ -58,7 +58,7 @@ public sealed class FilePostQuantumKeyStoreTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Second_load_rehydrates_existing_keypair_and_keeps_active_id()
     {
         string tempDir = TestDefaults.CreateTempDirectory();
@@ -85,7 +85,7 @@ public sealed class FilePostQuantumKeyStoreTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Rotate_changes_active_key_and_keeps_old_keypair_loadable()
     {
         string tempDir = TestDefaults.CreateTempDirectory();
@@ -112,7 +112,7 @@ public sealed class FilePostQuantumKeyStoreTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Atomic_write_leaves_no_temp_files_after_a_normal_save()
     {
         string tempDir = TestDefaults.CreateTempDirectory();
@@ -135,7 +135,7 @@ public sealed class FilePostQuantumKeyStoreTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Payload_encrypted_under_old_keypair_still_decrypts_after_rotation()
     {
         string tempDir = TestDefaults.CreateTempDirectory();

@@ -9,7 +9,7 @@ namespace PostQuantum.DataProtection.Tests;
 
 public sealed class EnvelopeTamperingTests
 {
-    [Fact]
+    [PqcFact]
     public async Task Tampered_ciphertext_byte_fails_authentication()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();
@@ -43,7 +43,7 @@ public sealed class EnvelopeTamperingTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Tampered_tag_fails_authentication()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();
@@ -70,7 +70,7 @@ public sealed class EnvelopeTamperingTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Tampered_kem_ciphertext_fails_decapsulation()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();
@@ -100,7 +100,7 @@ public sealed class EnvelopeTamperingTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task Truncated_envelope_throws_FormatException_on_decode()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();

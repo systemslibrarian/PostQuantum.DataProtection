@@ -6,7 +6,7 @@ namespace PostQuantum.DataProtection.Tests;
 
 public sealed class KeyDescriptorTests
 {
-    [Fact]
+    [PqcFact]
     public async Task ListKeysAsync_returns_one_active_keypair_after_first_run()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();
@@ -31,7 +31,7 @@ public sealed class KeyDescriptorTests
         }
     }
 
-    [Fact]
+    [PqcFact]
     public async Task ListKeysAsync_after_rotation_returns_old_and_new_with_only_new_active()
     {
         using LocalContentKeyProvider keys = TestDefaults.CreateContentKeyProvider();
