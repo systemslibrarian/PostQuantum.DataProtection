@@ -312,7 +312,7 @@ run; a standalone SharpFuzz harness in `fuzz/` is set up for AFL-driven explorat
 
 ## Project status
 
-`1.0.1` — **stable release.** The public API and the binary envelope/keypair formats are
+`1.0.2` — **stable release.** The public API and the binary envelope/keypair formats are
 frozen at version 1 (decoders reject unknown versions and modes); SemVer is in force. Depends on the
 stable `PostQuantum.KeyManagement 1.0.0`.
 

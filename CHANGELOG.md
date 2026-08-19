@@ -8,6 +8,47 @@ binary wire format may change in breaking ways across `0.x` minor versions. See
 
 ## [Unreleased]
 
+## [1.0.2] — 2026-08-19
+
+Security patch. **No wire-format change and no public API change** — every 1.0.1 envelope decodes
+identically; a drop-in over 1.0.1.
+
+### Security
+
+- **`System.Security.Cryptography.Xml` 8.0.3 → 8.0.4.** 8.0.3 is affected by five published
+  HIGH-severity advisories, all first patched in 8.0.4:
+  [GHSA-23rf-6693-g89p](https://github.com/advisories/GHSA-23rf-6693-g89p) (CVE-2026-50648),
+  [GHSA-8q5v-6pqq-x66h](https://github.com/advisories/GHSA-8q5v-6pqq-x66h) (CVE-2026-50525),
+  [GHSA-cvvh-rhrc-wg4q](https://github.com/advisories/GHSA-cvvh-rhrc-wg4q) (CVE-2026-47302),
+  [GHSA-g8r8-53c2-pm3f](https://github.com/advisories/GHSA-g8r8-53c2-pm3f) (CVE-2026-47304) and
+  [GHSA-mmjf-rqrv-855v](https://github.com/advisories/GHSA-mmjf-rqrv-855v) (CVE-2026-50527).
+
+  `PostQuantum.DataProtection` 1.0.1 declares this as a **direct** dependency, and `.Aws`,
+  `.AzureKeyVault`, `.Cli`, `.Fips`, `.OpenTelemetry`, `.Redis` and `.Testing` all depend on the
+  core package, so all eight published packages resolved the vulnerable version. Upgrading is
+  recommended for every consumer.
+
+  8.0.4 stays inside the 8.0.x line and ships `lib/net8.0`, so the `net8.0;net9.0;net10.0` target
+  set is unchanged. Note the 10.x line is only patched in **10.0.10** — 10.0.9 is still affected.
+
+### Fixed
+
+- **CI restore no longer fails on `NU1903`.** The vulnerability above was raised as an error by
+  `NuGetAudit`, so `build-and-test` failed at the restore step on every main commit from
+  2026-06-04 onward — including the commits tagged `Release 1.0.0` and `Release 1.0.1`. The build
+  now proceeds to test and coverage.
+
+### Changed
+
+- **ML-KEM-dependent tests skip on hosts without the primitive**, via a new `PqcFact` /
+  `PqcTheory` attribute, rather than failing with `PlatformNotSupportedException`. macOS has no
+  .NET 10 ML-KEM backend; 56 tests across 18 classes are affected, and the remaining 43 still run
+  there.
+- **The Linux CI lane installs OpenSSL 3.5+ from conda-forge**, so the ML-KEM suite actually
+  executes on Linux rather than skipping — it reports 108 passed, 0 skipped. A zero-skip gate on
+  the Linux and Windows lanes now fails the build if any PQ test is skipped, so a silently-skipped
+  crypto suite can no longer look like a passing one.
+
 ## [1.0.1] — 2026-06-30
 
 Patch: robustness + hygiene fixes from an external code review. **No wire-format change** — every

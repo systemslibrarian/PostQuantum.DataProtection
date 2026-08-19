@@ -23,13 +23,13 @@
   <!-- ───────────────────────── NuGet package metadata ───────────────────────── -->
   <PropertyGroup>
     <PackageId>PostQuantum.DataProtection</PackageId>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <!--
       AssemblyVersion is pinned to the 1.0.0.0 major line. Per SemVer, every 1.x release keeps this
       flat so consumers don't re-reference across minors; FileVersion tracks the precise build.
     -->
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.1.0</FileVersion>
+    <FileVersion>1.0.2.0</FileVersion>
     <Authors>Paul Clark</Authors>
     <Company>Systems Librarian</Company>
     <Product>PostQuantum.DataProtection</Product>
