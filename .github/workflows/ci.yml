@@ -132,23 +132,37 @@ jobs:
           branch=$(python3 -c "import xml.etree.ElementTree as ET; print(ET.parse('$report').getroot().get('branch-rate'))")
           echo "line-rate=$line"
           echo "branch-rate=$branch"
-          python3 - <<EOF
-          line, branch = float("$line"), float("$branch")
+          # On failure, name the least-covered classes. A bare percentage says the gate
+          # tripped but not where to look, which is how coverage drifts quietly.
+          python3 - "$report" <<'EOF'
+          import sys, xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          line, branch = float(root.get("line-rate")), float(root.get("branch-rate"))
           line_min, branch_min = 0.85, 0.75
           ok = True
-          if line < line_min:
-              print(f"FAIL: line coverage {line:.2%} < {line_min:.0%}"); ok = False
-          else:
-              print(f"OK:   line coverage {line:.2%} ≥ {line_min:.0%}")
-          if branch < branch_min:
-              print(f"FAIL: branch coverage {branch:.2%} < {branch_min:.0%}"); ok = False
-          else:
-              print(f"OK:   branch coverage {branch:.2%} ≥ {branch_min:.0%}")
-          import sys; sys.exit(0 if ok else 1)
+          for label, got, want in (("line", line, line_min), ("branch", branch, branch_min)):
+              if got < want:
+                  print(f"FAIL: {label} coverage {got:.2%} < {want:.0%}"); ok = False
+              else:
+                  print(f"OK:   {label} coverage {got:.2%} >= {want:.0%}")
+          if not ok:
+              rows = []
+              for cls in root.iter("class"):
+                  lines = cls.find("lines")
+                  total = len(lines.findall("line")) if lines is not None else 0
+                  if total:
+                      rows.append((float(cls.get("line-rate")), total, cls.get("name")))
+              rows.sort()
+              print("\nLeast-covered classes (line%, lines, name):")
+              for rate, total, name in rows[:15]:
+                  print(f"  {rate:6.1%} {total:5d}  {name}")
+          sys.exit(0 if ok else 1)
           EOF
 
       - name: Upload coverage report
-        if: matrix.os == 'ubuntu-latest'
+        # always(): the gate above fails the job, and without this the coverage report --
+        # the only artifact that explains why -- is never uploaded.
+        if: always() && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v7
         with:
           name: coverage
