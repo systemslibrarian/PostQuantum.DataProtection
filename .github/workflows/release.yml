@@ -1,0 +1,196 @@
+name: Release
+
+# Publishes the eight packages when a v* tag is pushed.
+#
+# This repository previously had no release automation at all: v1.0.0 and v1.0.1 were packed and
+# pushed by hand. That is how the v1.0.2 security release came to be tagged with nothing published,
+# and it is why this workflow exists.
+#
+# Everything here is designed so a consumer can independently verify what they installed:
+#   - the documented version must match the tag before anything is packed;
+#   - the full test suite runs on all three TFMs, with real ML-KEM available, before packing;
+#   - a CycloneDX SBOM is generated and attached to the GitHub release;
+#   - build-provenance attestations are produced for every .nupkg (`gh attestation verify`);
+#   - packages are pushed via Trusted Publishing (short-lived OIDC token, no stored API key).
+#
+# ONE-TIME SETUP REQUIRED BEFORE THIS CAN PUBLISH:
+#   nuget.org -> account -> Trusted Publishing -> add a policy for
+#   (owner: systemslibrarian, repo: PostQuantum.DataProtection, workflow: release.yml).
+# Until that policy exists the NuGet/login step will fail and nothing is pushed. Every step before
+# it still runs, so a tag pushed before setup produces a verifiable GitHub release without
+# publishing — safe to retry once the policy is in place.
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to attach the GitHub release to (e.g. v1.0.2). The package version comes from the .csproj regardless.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write      # create the GitHub release and upload assets
+  id-token: write      # OIDC token for NuGet Trusted Publishing + attestations
+  attestations: write  # build-provenance attestations for the packages
+
+env:
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    name: Build, verify, pack, publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # SourceLink wants the full history
+
+      # Fail before anything is packed if the version documented to users has drifted from the tag.
+      # Scope is the user-facing surface: every packable project's <Version>, and every
+      # 'dotnet add package … --version' snippet in tracked Markdown. CHANGELOG.md is excluded —
+      # version mentions there are facts about earlier releases, not instructions.
+      #
+      # The sibling repository postquantum-file-encryption has the equivalent gate, and it rejected
+      # a v1.7.0 tag over exactly this class of mismatch before anything reached nuget.org.
+      - name: Verify documented versions match the release tag
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          echo "Release tag version: ${version}"
+          fail=0
+
+          while IFS= read -r csproj; do
+            declared="$(grep -oPm1 '(?<=<Version>)[^<]+' "$csproj" || true)"
+            if [ -n "$declared" ] && [ "$declared" != "$version" ]; then
+              echo "::error file=$csproj::<Version> is '$declared' but the release tag is '$version'"
+              fail=1
+            fi
+          done < <(git ls-files '*.csproj')
+
+          while IFS= read -r hit; do
+            f="${hit%%:*}"
+            pinned="$(printf '%s' "$hit" | grep -oP -- '--version \K[0-9][0-9A-Za-z.-]*')"
+            if [ "$pinned" != "$version" ]; then
+              echo "::error file=$f::install snippet pins '--version $pinned' but the release tag is '$version'"
+              fail=1
+            fi
+          done < <(git grep -nP -- '--version [0-9]' -- '*.md' ':!CHANGELOG.md' || true)
+
+          if [ "$fail" -ne 0 ]; then
+            echo "Version drift detected — sweep the docs to ${version} before tagging." >&2
+            exit 1
+          fi
+          echo "All project and documentation versions match ${version}."
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      # The ML-KEM tests need OpenSSL 3.5+; the stock ubuntu runner predates it, so
+      # MLKem.IsSupported is false and the PqcFact guard skips the entire crypto suite. A release
+      # must not be cut from a run where the cryptographic paths never executed — see the matching
+      # setup in ci.yml.
+      - name: Set up miniconda (ML-KEM needs OpenSSL 3.5+)
+        uses: conda-incubator/setup-miniconda@v4
+        with:
+          auto-update-conda: false
+          activate-environment: pq
+          channels: conda-forge
+
+      - name: Install OpenSSL 3.5+ from conda-forge
+        shell: bash -el {0}
+        run: |
+          conda install -y -n pq -c conda-forge "openssl>=3.5,<4"
+          "$CONDA/envs/pq/bin/openssl" version
+          echo "PQ_OPENSSL_LIB=$CONDA/envs/pq/lib" >> "$GITHUB_ENV"
+
+      - name: Restore
+        run: dotnet restore PostQuantum.DataProtection.slnx
+
+      - name: Build (Release, all targets, zero warnings)
+        run: dotnet build PostQuantum.DataProtection.slnx -c Release --no-restore
+
+      - name: Test
+        shell: bash
+        run: |
+          set -o pipefail
+          export LD_LIBRARY_PATH="$PQ_OPENSSL_LIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          dotnet test tests/PostQuantum.DataProtection.Tests/PostQuantum.DataProtection.Tests.csproj \
+            -c Release --no-build --logger "console;verbosity=normal" | tee test-output.log
+
+      # A silently-skipped crypto suite is indistinguishable from a passing one. Nothing ships from
+      # a run where the ML-KEM paths did not execute.
+      - name: Require zero skipped tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          passed=$(grep -oE 'Passed:[[:space:]]*[0-9]+' test-output.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)
+          skipped=$(grep -oE 'Skipped:[[:space:]]*[0-9]+' test-output.log | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}' || true)
+          echo "passed=$passed skipped=$skipped"
+          if [ "${passed:-0}" -eq 0 ]; then
+            echo "::error::No passing tests found — the suite did not run."
+            exit 1
+          fi
+          if [ "${skipped:-0}" -ne 0 ]; then
+            echo "::error::$skipped test(s) skipped — ML-KEM was unavailable; refusing to release."
+            exit 1
+          fi
+          echo "PQ-required check passed: $passed passed, 0 skipped."
+
+      - name: Pack
+        run: |
+          set -euo pipefail
+          for proj in \
+            src/PostQuantum.DataProtection/PostQuantum.DataProtection.csproj \
+            src/PostQuantum.DataProtection.Aws/PostQuantum.DataProtection.Aws.csproj \
+            src/PostQuantum.DataProtection.AzureKeyVault/PostQuantum.DataProtection.AzureKeyVault.csproj \
+            src/PostQuantum.DataProtection.Fips/PostQuantum.DataProtection.Fips.csproj \
+            src/PostQuantum.DataProtection.OpenTelemetry/PostQuantum.DataProtection.OpenTelemetry.csproj \
+            src/PostQuantum.DataProtection.Redis/PostQuantum.DataProtection.Redis.csproj \
+            src/PostQuantum.DataProtection.Testing/PostQuantum.DataProtection.Testing.csproj \
+            tools/PostQuantum.DataProtection.Cli/PostQuantum.DataProtection.Cli.csproj ; do
+            dotnet pack "$proj" -c Release --no-build -o artifacts
+          done
+          ls -1 artifacts
+
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          dotnet tool install --global CycloneDX
+          "$HOME/.dotnet/tools/dotnet-CycloneDX" PostQuantum.DataProtection.slnx -o artifacts -f sbom.cyclonedx.json
+
+      - name: Attest build provenance for packages
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: artifacts/*.nupkg
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          files: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+            artifacts/sbom.cyclonedx.json
+
+      # Trusted Publishing: exchanges the workflow's OIDC token for a short-lived NuGet API key.
+      # No NUGET_API_KEY secret is stored. Requires the one-time nuget.org policy in the header.
+      - name: Authenticate to NuGet (Trusted Publishing)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: systemslibrarian
+
+      - name: Push to NuGet.org
+        run: |
+          dotnet nuget push "artifacts/*.nupkg" \
+            --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
