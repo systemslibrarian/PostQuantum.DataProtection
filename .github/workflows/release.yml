@@ -163,7 +163,8 @@ jobs:
       - name: Generate SBOM (CycloneDX)
         run: |
           dotnet tool install --global CycloneDX
-          "$HOME/.dotnet/tools/dotnet-CycloneDX" PostQuantum.DataProtection.slnx -o artifacts -f sbom.cyclonedx.json
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          dotnet-CycloneDX PostQuantum.DataProtection.slnx -o ./artifacts -F Json -fn sbom.cyclonedx.json -t
 
       - name: Attest build provenance for packages
         uses: actions/attest-build-provenance@v4
